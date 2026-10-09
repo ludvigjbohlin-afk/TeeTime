@@ -280,6 +280,10 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 .ci .grow em { display: block; font-style: normal; font-size: .75rem; font-weight: 700; color: var(--muted); }
 .ci.on .grow em { color: var(--green); }
 .ci .km { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.ci.picked .tile { background: var(--green); color: var(--on-green); }
+.pickchip { display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 0 4px 0 12px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: .85rem; font-weight: 600; }
+.pickchip.off { background: var(--hair); color: var(--muted); }
+.pickchip button { border: 0; background: transparent; color: inherit; width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem; line-height: 1; }
 .star { border: 0; background: transparent; width: 40px; height: 40px; display: grid; place-items: center; color: var(--muted); flex: none; }
 .star[aria-pressed="true"] { color: var(--few); }
 
@@ -481,7 +485,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var S = {
   session: null, uid: null, profile: {}, settings: {}, email: '',
   clubs: [], courses: [], adminClubs: [],
-  club: null, date: addDays(today(), 1), time: '10:00', course: 'any', players: 2,
+  club: null, picks: [], sheets: {}, date: addDays(today(), 1), time: '10:00', course: 'any', players: 2,
   filter: 'all', onlyFree: false, tab: 'boka',
   sheet: null, sheetKey: '', sheetLoading: false,
   rounds: [], watches: [], friends: [], proposals: [], notifs: [],
@@ -532,12 +536,17 @@ function clubCourses(cid) { return S.courses.filter(function (c) { return c.club
 function courseName(id) { if (id === 'any') return 'Valfri bana'; var c = course(id); return c ? c.name : 'Bana'; }
 function isAdminOf(cid) { return S.adminClubs.indexOf(cid) >= 0; }
 
-/* ================= Tee-sheet ================= */
-function sheetRow(cid, t) { return S.sheet && S.sheet.rows[cid + '|' + t]; }
-function slotFor(t) {
-  // Sammanställ en starttid för vald bana eller för alla banor
-  var list = S.course === 'any' ? clubCourses(S.club).map(function (c) { return c.id; }) : [S.course];
-  var rows = list.map(function (id) { return sheetRow(id, t); }).filter(Boolean);
+/* ================= Tee-sheet (en eller flera valda klubbar) ================= */
+function sheetOf(cid) { return S.sheets[cid || S.club] || null; }
+function sheetRow(cid, t, clubId) { var sh = sheetOf(clubId); return sh && sh.rows[cid + '|' + t]; }
+function courseIdsFor(clubId) {
+  clubId = clubId || S.club;
+  if (S.course !== 'any' && course(S.course) && course(S.course).club_id === clubId) return [S.course];
+  return clubCourses(clubId).map(function (c) { return c.id; });
+}
+function slotFor(t, clubId) {
+  clubId = clubId || S.club;
+  var rows = courseIdsFor(clubId).map(function (id) { return sheetRow(id, t, clubId); }).filter(Boolean);
   if (!rows.length) return null;
   var free = 0, cap = 0, blocked = null, mine = false, groups = [], price = Infinity, allBlocked = true;
   rows.forEach(function (r) {
@@ -549,86 +558,153 @@ function slotFor(t) {
   });
   return { free: free, cap: cap, blocked: allBlocked ? blocked : null, mine: mine, groups: groups, price: price === Infinity ? rows[0].price : price };
 }
-function candidates(t, players) {
-  var list = S.course === 'any' ? clubCourses(S.club).map(function (c) { return c.id; }) : [S.course];
-  return list.map(function (id) { return sheetRow(id, t); })
+function candidates(t, players, clubId) {
+  clubId = clubId || S.club;
+  return courseIdsFor(clubId).map(function (id) { return sheetRow(id, t, clubId); })
     .filter(function (r) { return r && !r.blocked && r.free >= players; })
     .sort(function (a, b) { return b.free - a.free || a.price - b.price; });
 }
-function sheetTimes() { return S.sheet ? S.sheet.times : []; }
-function tooDark(date, time, cid) {
-  var cl = club(S.club) || {}, s = sunTimes(date, cl.lat, cl.lng); if (!s.set) return false;
-  var mins = cid && cid !== 'any' ? (course(cid) || {}).round_minutes || 255 : Math.max.apply(null, clubCourses(S.club).map(function (c) { return c.round_minutes; }).concat([90]));
+function sheetTimes() {
+  var all = {};
+  bookablePicks().forEach(function (cid) { var sh = sheetOf(cid); if (sh) sh.times.forEach(function (t) { all[t] = 1; }); });
+  return Object.keys(all).sort();
+}
+function tooDark(date, time, cid, clubId) {
+  clubId = clubId || S.club;
+  var cl = club(clubId) || {}, s = sunTimes(date, cl.lat, cl.lng); if (!s.set) return false;
+  var mins = cid && cid !== 'any' ? (course(cid) || {}).round_minutes || 255 : Math.max.apply(null, clubCourses(clubId).map(function (c) { return c.round_minutes; }).concat([90]));
   return toMin(time) + mins > toMin(s.set);
 }
+function bookablePicks() { return S.picks.filter(function (id) { return club(id) && clubBookable(id); }); }
+function savePicks() { if (S.uid) lsSet('tt-picks-' + S.uid, JSON.stringify(S.picks)); }
 
 async function loadSheet(force) {
-  if (!S.club || !sb || !clubBookable(S.club)) return;
-  var key = S.club + '|' + S.date;
+  var ids = bookablePicks();
+  if (!ids.length || !sb) { S.sheet = null; return; }
+  if (ids.indexOf(S.club) < 0) S.club = ids[0];
+  var key = ids.join(',') + '|' + S.date;
   if (!force && S.sheetKey === key && S.sheet) return;
   var myKey = key; S.sheetLoading = !S.sheet || S.sheetKey !== key; S.sheetKey = key;
   if (S.sheetLoading) renderBoka();
-  var r = await sb.rpc('get_day_sheet', { p_club: S.club, p_date: S.date });
+  var res = await Promise.all(ids.map(function (cid) { return sb.rpc('get_day_sheet', { p_club: cid, p_date: S.date }); }));
   if (S.sheetKey !== myKey) return;
   S.sheetLoading = false;
-  if (r.error) { S.sheet = S.sheet && S.sheet.key === key ? S.sheet : null; renderBoka(); if (isNetErr(r.error.message)) setOnline(false); return; }
-  var rows = {}, times = {};
-  (r.data || []).forEach(function (x) { var t = hm(x.tee_time); x.tee_time = t; rows[x.course_id + '|' + t] = x; times[t] = 1; });
-  S.sheet = { key: key, rows: rows, times: Object.keys(times).sort() };
-  if (S.sheet.times.length && S.sheet.times.indexOf(S.time) < 0) {
-    var target = toMin(S.time), best = S.sheet.times[0];
-    S.sheet.times.forEach(function (t) { if (Math.abs(toMin(t) - target) < Math.abs(toMin(best) - target)) best = t; });
+  var failed = res.filter(function (r) { return r.error; });
+  if (failed.length === res.length) { renderBoka(); if (isNetErr(failed[0].error.message)) setOnline(false); return; }
+  var sheets = {};
+  res.forEach(function (r, i) {
+    if (r.error) return;
+    var rows = {}, times = {};
+    (r.data || []).forEach(function (x) { var t = hm(x.tee_time); x.tee_time = t; rows[x.course_id + '|' + t] = x; times[t] = 1; });
+    sheets[ids[i]] = { key: ids[i] + '|' + S.date, rows: rows, times: Object.keys(times).sort() };
+  });
+  S.sheets = sheets; S.sheet = sheets[S.club] || null;
+  var times = sheetTimes();
+  if (times.length && times.indexOf(S.time) < 0) {
+    var target = toMin(S.time), best = times[0];
+    times.forEach(function (t) { if (Math.abs(toMin(t) - target) < Math.abs(toMin(best) - target)) best = t; });
     S.time = best;
+  }
+  // Välj en klubb som faktiskt har vald tid
+  if (!slotFor(S.time, S.club)) { var other = ids.filter(function (cid) { return slotFor(S.time, cid); })[0]; if (other) { S.club = other; S.sheet = sheets[other]; } }
+  // Ny vy: hoppa till närmaste tid som går att boka för sällskapet
+  if (S.scrollToSel && !candidates(S.time, S.players).length) {
+    var want = toMin(S.time), pick = null;
+    ids.forEach(function (cid) {
+      (sheets[cid] ? sheets[cid].times : []).forEach(function (t) {
+        if (isPast(S.date, t) || !candidates(t, S.players, cid).length) return;
+        var dist = Math.abs(toMin(t) - want);
+        if (!pick || dist < pick.d) pick = { t: t, cid: cid, d: dist };
+      });
+    });
+    if (pick) selectSlot(pick.cid, pick.t);
   }
   renderBoka();
 }
 function scheduleSheetReload() { clearTimeout(sheetTimer); sheetTimer = setTimeout(function () { loadSheet(true); }, 250); }
+function selectSlot(clubId, t) {
+  if (clubId && clubId !== S.club) { S.club = clubId; S.sheet = sheetOf(clubId); if (S.course !== 'any' && (course(S.course) || {}).club_id !== clubId) S.course = 'any'; }
+  S.time = t;
+}
 
 /* ================= Rendering: Boka ================= */
 function clubBookable(cid) { return clubCourses(cid).length > 0; }
 function clubWhere(c) { return [c.city || c.municipality, c.county || c.region].filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · '); }
+function shortName(c) { return (c && c.name || '').replace(/\s+(Golfklubb|Golf Club|Golf & Country Club|Golf and Country Club|G&CC|GK|GC)$/i, '') || (c && c.name) || ''; }
 function renderHead() {
   var h = $('headTitle'); if (!h) return;
-  var cl = club(S.club);
-  if (!cl) { h.innerHTML = '<div class="brand">TeeTime</div>'; return; }
-  var n = clubCourses(cl.id).length;
-  h.innerHTML = '<button type="button" class="name" data-act="pick-club" aria-label="Byt klubb, vald: ' + esc(cl.name) + '"><small>' + esc([clubWhere(cl), n ? n + (n === 1 ? ' bana' : ' banor') : 'Ej ansluten'].filter(Boolean).join(' · ')) + '</small>' +
-    '<b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(cl.name) + '</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></b></button>';
+  var n = S.picks.length;
+  if (!n) { h.innerHTML = '<div class="name"><small>Boka golf</small><b style="font-family:var(--font-display);font-size:1.6rem;letter-spacing:-.02em">Var vill du spela?</b></div>'; return; }
+  var cl = club(S.picks[0]);
+  var title = n === 1 && cl ? cl.name : n + ' banor valda';
+  var small = n === 1 && cl ? clubWhere(cl) : S.picks.map(function (id) { return shortName(club(id)); }).filter(Boolean).join(', ');
+  h.innerHTML = '<button type="button" class="name" data-act="open-picker" aria-label="Ändra banor, valda: ' + esc(title) + '"><small style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw">' + esc(small) + '</small>' +
+    '<b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(title) + '</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></b></button>';
+}
+function pickStepHtml() {
+  var favs = (S.settings.favorite_clubs || []).filter(function (id) { return club(id); });
+  var sugg = [];
+  if (S.profile.home_club && club(S.profile.home_club)) sugg.push(S.profile.home_club);
+  favs.forEach(function (id) { if (sugg.indexOf(id) < 0) sugg.push(id); });
+  S.clubs.filter(function (c) { return clubBookable(c.id); }).forEach(function (c) { if (sugg.length < 6 && sugg.indexOf(c.id) < 0) sugg.push(c.id); });
+  var html = '<div class="card" style="gap:14px"><p class="note" style="font-size:.95rem">Välj en eller flera banor som du kan tänka dig att spela på. Sedan visar vi alla lediga tider på dem samtidigt.</p>' +
+    '<button type="button" class="btn primary block" data-act="open-picker">Välj banor</button></div>';
+  if (sugg.length) html += '<div class="card"><h3>Förslag</h3><div>' + sugg.map(function (id) { return clubItemHtml(club(id), null, true); }).join('') + '</div>' +
+    '<button type="button" class="btn block" data-act="picks-done" ' + (S.picks.length ? '' : 'disabled') + '>Visa lediga tider</button></div>';
+  return html;
+}
+function picksBarHtml() {
+  var chips = S.picks.map(function (id) {
+    var c = club(id); if (!c) return '';
+    return '<span class="pickchip' + (clubBookable(id) ? '' : ' off') + '"><span>' + esc(shortName(c)) + '</span><button type="button" data-act="remove-pick" data-id="' + id + '" aria-label="Ta bort ' + esc(c.name) + '">×</button></span>';
+  }).join('');
+  return '<div class="chips" style="align-items:center">' + chips + '<button type="button" class="fchip" data-act="open-picker" style="border-style:dashed">+ Lägg till bana</button></div>';
 }
 function renderBoka() {
   var v = $('view-boka');
   renderHead();
   if (!S.clubs.length) {
-    v.innerHTML = '<div class="card empty"><strong>Laddar klubbar…</strong>Om inget händer, kontrollera anslutningen.</div>';
+    v.innerHTML = '<div class="card empty"><strong>Laddar banor…</strong>Om inget händer, kontrollera anslutningen.</div>';
     renderAction(); return;
   }
-  var cl = club(S.club) || S.clubs[0];
-  if (!clubBookable(cl.id)) { v.innerHTML = notBookableHtml(cl); renderAction(); return; }
-  var html = '';
+  if (!S.picks.length) { v.innerHTML = pickStepHtml(); renderAction(); return; }
+  var books = bookablePicks();
+  var offs = S.picks.filter(function (id) { return club(id) && !clubBookable(id); });
+  if (!books.length) {
+    var only = club(S.picks[0]);
+    v.innerHTML = picksBarHtml() + (only ? notBookableHtml(only, S.picks.length > 1) : '');
+    renderAction(); return;
+  }
+  if (books.indexOf(S.club) < 0) { S.club = books[0]; S.sheet = sheetOf(S.club); }
+  var cl = club(S.club);
+  var html = picksBarHtml();
 
   // Datum
+  var maxDays = Math.max.apply(null, books.map(function (id) { return (club(id) || {}).booking_days || 30; }));
   var strip = '';
   for (var i = 0; i < 14; i++) {
     var d = addDays(today(), i), w = i === 0 ? 'Idag' : i === 1 ? 'Imorg.' : fmtDate(d, { weekday: 'short' }).replace('.', '');
     strip += '<button type="button" class="day' + (isWeekend(d) ? ' we' : '') + '" data-d="' + d + '" aria-pressed="' + (d === S.date) + '" aria-label="' + esc(longDate(d)) + '"><span class="w">' + esc(w) + '</span><span class="n">' + (+d.slice(8)) + '</span></button>';
   }
   var inStrip = S.date <= addDays(today(), 13);
-  strip += '<label class="day other"' + (inStrip ? '' : ' aria-pressed="true" style="background:var(--green);color:var(--on-green);border-color:var(--green)"') + '>' + (inStrip ? 'Annat datum' : esc(fmtDate(S.date))) + '<input type="date" id="fDate" min="' + today() + '" max="' + addDays(today(), cl.booking_days || 30) + '" value="' + S.date + '" aria-label="Välj annat datum"></label>';
+  strip += '<label class="day other"' + (inStrip ? '' : ' aria-pressed="true" style="background:var(--green);color:var(--on-green);border-color:var(--green)"') + '>' + (inStrip ? 'Annat datum' : esc(fmtDate(S.date))) + '<input type="date" id="fDate" min="' + today() + '" max="' + addDays(today(), maxDays) + '" value="' + S.date + '" aria-label="Välj annat datum"></label>';
   html += '<div class="strip" id="strip">' + strip + '</div>';
 
-  // Banor
-  var cs = clubCourses(cl.id);
-  if (cs.length > 1) {
-    html += '<div class="chips" role="group" aria-label="Bana">' + [{ id: 'any', name: 'Valfri bana' }].concat(cs).map(function (c) {
-      return '<button type="button" class="fchip" data-c="' + c.id + '" aria-pressed="' + (S.course === c.id) + '">' + esc(c.name) + '</button>';
-    }).join('') + '</div>';
+  // Banor inom en klubb (bara när en klubb är vald)
+  if (books.length === 1) {
+    var cs = clubCourses(cl.id);
+    if (cs.length > 1) {
+      html += '<div class="chips" role="group" aria-label="Slinga">' + [{ id: 'any', name: 'Alla slingor' }].concat(cs).map(function (c) {
+        return '<button type="button" class="fchip" data-c="' + c.id + '" aria-pressed="' + (S.course === c.id) + '">' + esc(c.name) + '</button>';
+      }).join('') + '</div>';
+    }
+    var sc = S.course !== 'any' ? course(S.course) : (cs.length === 1 ? cs[0] : null);
+    if (sc) html += '<p class="note">' + esc(sc.holes + ' hål · par ' + sc.par + (sc.length_m ? ' · ' + sc.length_m.toLocaleString('sv-SE') + ' m' : '') + ' · greenfee ' + kr(sc.price + (isWeekend(S.date) ? sc.weekend_add : 0)) + (sc.twilight_from && sc.twilight_pct ? ' · ' + sc.twilight_pct + ' % rabatt från ' + hm(sc.twilight_from) : '')) + '</p>';
   }
-  var sc = S.course !== 'any' ? course(S.course) : (cs.length === 1 ? cs[0] : null);
-  if (sc) html += '<p class="note">' + esc(sc.holes + ' hål · par ' + sc.par + (sc.length_m ? ' · ' + sc.length_m.toLocaleString('sv-SE') + ' m' : '') + ' · greenfee ' + kr(sc.price + (isWeekend(S.date) ? sc.weekend_add : 0)) + (sc.twilight_from && sc.twilight_pct ? ' · ' + sc.twilight_pct + ' % rabatt från ' + hm(sc.twilight_from) : '')) + '</p>';
 
   // Startlista
   var s = sunTimes(S.date, cl.lat, cl.lng);
-  html += '<div class="card" style="padding-bottom:0;gap:10px;overflow:hidden"><div class="sheet-head"><h2>Startlista · ' + esc(fmtDate(S.date)) + '</h2>' +
+  html += '<div class="card" style="padding-bottom:0;gap:10px;overflow:hidden"><div class="sheet-head"><h2>Lediga tider · ' + esc(fmtDate(S.date)) + '</h2>' +
     '<label class="row" style="gap:6px;font-size:.8rem;color:var(--muted)" for="fTime">Gå till<input type="time" id="fTime" value="' + S.time + '" style="width:auto;min-height:36px;padding:4px 8px"></label></div>' +
     '<div class="row between"><div class="chips">' +
     [['all', 'Hela dagen'], ['am', 'Morgon'], ['mid', 'Mitt på dagen'], ['pm', 'Eftermiddag']].map(function (f) { return '<button type="button" class="fchip" data-f="' + f[0] + '" aria-pressed="' + (S.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') +
@@ -639,7 +715,8 @@ function renderBoka() {
   html += '</div>';
   var info = slotInfoHtml();
   if (info) html += '<div class="list">' + info + '</div>';
-  html += '<details class="note"><summary>Teckenförklaring</summary><div class="legend" style="margin-top:8px"><span><i style="background:var(--free)"></i>Ledig plats</span><span><i style="background:var(--few)"></i>För få platser</span><span><i style="background:var(--full)"></i>Fullt</span><span><i style="background:var(--flag)"></i>Öppen grupp</span><span><i style="background:var(--green)"></i>Din tid</span><span><i style="background:var(--dusk)"></i>Mörkt före sista hålet</span><span><i style="border:1.5px solid var(--ink)"></i>Bevakad</span></div></details>';
+  if (offs.length) html += '<div class="info">' + esc(offs.map(function (id) { return club(id).name; }).join(', ')) + (offs.length === 1 ? ' är' : ' är') + ' inte ansluten till TeeTime än och bokas i <a href="https://mingolf.golf.se/" target="_blank" rel="noopener">Min Golf</a>.</div>';
+  html += '<details class="note"><summary>Teckenförklaring</summary><div class="legend" style="margin-top:8px"><span><i style="border:2px solid var(--free)"></i>Ledig plats</span><span><i style="background:var(--free)"></i>Bokad plats</span><span><i style="background:var(--few)"></i>För få platser för er</span><span><i style="background:var(--full)"></i>Fullt</span><span><i style="background:var(--flag)"></i>Öppen grupp</span><span><i style="background:var(--green)"></i>Din tid</span><span><i style="background:var(--dusk)"></i>Mörkt före sista hålet</span><span><i style="border:1.5px solid var(--ink)"></i>Bevakad</span></div></details>';
 
   var y = window.scrollY, stripX = $('strip') ? $('strip').scrollLeft : null;
   v.innerHTML = html;
@@ -652,61 +729,68 @@ function renderBoka() {
   }
   renderAction();
 }
-function notBookableHtml(cl) {
+function notBookableHtml(cl, multi) {
   var fav = (S.settings.favorite_clubs || []).indexOf(cl.id) >= 0;
   var near = nearestBookable(cl, 3);
   var html = '<div class="card notbook"><span class="lbl">Inte ansluten till TeeTime än</span>' +
-    '<p class="big">' + esc(cl.name) + ' bokas i Min Golf så länge</p>' +
-    '<p class="note">Klubben finns med här så att du hittar den. När klubben ansluter sig, eller när TeeTime får koppla mot golfförbundets system, kan du boka direkt här.</p>' +
+    '<p class="big">' + (multi ? 'Banorna du valt bokas i Min Golf så länge' : esc(cl.name) + ' bokas i Min Golf så länge') + '</p>' +
+    '<p class="note">Klubbarna finns med här så att du hittar dem. När en klubb ansluter sig, eller när TeeTime får koppla mot golfförbundets system, kan du boka direkt här. Lägg gärna till en ansluten bana nedan.</p>' +
     '<div class="row"><a class="btn primary" href="https://mingolf.golf.se/" target="_blank" rel="noopener">Öppna Min Golf</a>' +
-    (cl.website ? '<a class="btn" href="' + esc(safeUrl(cl.website)) + '" target="_blank" rel="noopener">Klubbens webbplats</a>' : '') +
-    '<button type="button" class="btn" data-act="fav-club" data-id="' + cl.id + '" aria-pressed="' + fav + '">' + (fav ? '★ Favorit' : '☆ Spara som favorit') + '</button></div>' +
-    '<button type="button" class="btn link" data-act="tip-club" data-id="' + cl.id + '" style="align-self:flex-start">Tipsa klubben om TeeTime</button></div>';
-  if (near.length) html += '<div class="card"><h3>Boka i appen nära ' + esc(cl.name) + '</h3><div>' + near.map(function (x) { return clubItemHtml(x.c, x.km); }).join('') + '</div></div>';
+    (!multi && cl.website ? '<a class="btn" href="' + esc(safeUrl(cl.website)) + '" target="_blank" rel="noopener">Klubbens webbplats</a>' : '') +
+    (!multi ? '<button type="button" class="btn" data-act="fav-club" data-id="' + cl.id + '" aria-pressed="' + fav + '">' + (fav ? '★ Favorit' : '☆ Spara som favorit') + '</button>' : '') + '</div>' +
+    (!multi ? '<button type="button" class="btn link" data-act="tip-club" data-id="' + cl.id + '" style="align-self:flex-start">Tipsa klubben om TeeTime</button>' : '') + '</div>';
+  if (near.length) html += '<div class="card"><h3>Boka i appen nära ' + esc(cl.name) + '</h3><div>' + near.map(function (x) { return clubItemHtml(x.c, x.km, true); }).join('') + '</div></div>';
   return html;
 }
 function safeUrl(u) { u = String(u || '').trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u; return u; }
 function inFilter(m) {
   if (S.filter === 'am') return m < 600; if (S.filter === 'mid') return m >= 600 && m < 780; if (S.filter === 'pm') return m >= 780; return true;
 }
-function myWatchCovers(t) {
+function myWatchCovers(t, clubId) {
+  clubId = clubId || S.club;
   return S.watches.some(function (w) {
-    if (w.club_id !== S.club || w.play_date !== S.date) return false;
+    if (w.club_id !== clubId || w.play_date !== S.date) return false;
     if (w.course_id && S.course !== 'any' && w.course_id !== S.course) return false;
     return Math.abs(toMin(w.tee_time) - toMin(t)) <= w.window_min;
   });
 }
 function listHtml() {
-  var html = '', shown = 0;
+  var html = '', shown = 0, books = bookablePicks(), multi = books.length > 1;
   sheetTimes().forEach(function (t) {
     var m = toMin(t); if (!inFilter(m)) return;
-    var sl = slotFor(t); if (!sl) return;
-    var past = isPast(S.date, t);
-    var cls = past ? 'past' : sl.blocked ? 'blocked' : sl.free >= S.players ? 'ok' : sl.free > 0 ? 'few' : 'full';
-    if (S.onlyFree && cls !== 'ok' && t !== S.time) return;
-    shown++;
-    var cap = sl.cap || 4, balls = '';
-    for (var i = 0; i < cap; i++) balls += '<i' + (i < sl.free ? '' : ' class="f"') + '></i>';
-    var tags = '';
-    if (sl.mine) tags += '<i class="mine" title="Din tid"></i>';
-    if (!past && sl.groups.length) tags += '<i class="open" title="Öppen grupp"></i>';
-    if (!past && tooDark(S.date, t, S.course)) tags += '<i class="dusk" title="Mörkt före sista hålet"></i>';
-    if (myWatchCovers(t)) tags += '<i class="watch" title="Bevakad"></i>';
-    var status = past ? 'Passerad' : sl.blocked ? 'Stängt' : sl.free === 0 ? 'Fullt' : sl.free === cap ? 'Ledig boll' : sl.free + (sl.free === 1 ? ' plats ledig' : ' platser lediga');
-    var sub;
-    if (sl.blocked) sub = sl.blocked;
-    else if (sl.mine) sub = 'Din bokning';
-    else if (sl.groups.length) sub = 'Öppen grupp · ' + sl.groups[0].name;
-    else if (S.course === 'any') { var c = candidates(t, 1); sub = c.length ? courseName(c[0].course_id) + (c.length > 1 ? ' + ' + (c.length - 1) + ' till' : '') : (sl.free === 0 ? 'Bevaka för att få besked' : ''); }
-    else sub = sl.free === 0 && !past ? 'Bevaka för att få besked' : '';
-    var price = !past && !sl.blocked && sl.free > 0 ? kr(sl.price) : '';
-    var label = t + ', ' + status + (sub ? ', ' + sub : '') + (price ? ', ' + price : '');
-    html += '<button type="button" class="sl-row ' + cls + '" data-t="' + t + '" aria-pressed="' + (t === S.time) + '" aria-label="' + esc(label) + '"' + (past ? ' disabled' : '') + '>' +
-      '<span class="t">' + t + '</span><span class="balls" aria-hidden="true">' + balls + '</span>' +
-      '<span class="st"><b>' + esc(status) + '<span class="tags" aria-hidden="true">' + tags + '</span></b><span>' + esc(sub) + '</span></span>' +
-      '<span class="pr">' + price + '</span></button>';
+    books.forEach(function (cid) {
+      var sl = slotFor(t, cid); if (!sl) return;
+      var past = isPast(S.date, t);
+      var cls = past ? 'past' : sl.blocked ? 'blocked' : sl.free >= S.players ? 'ok' : sl.free > 0 ? 'few' : 'full';
+      var selected = t === S.time && cid === S.club;
+      if (S.onlyFree && cls !== 'ok' && !selected) return;
+      if (multi && past && !selected) return;
+      shown++;
+      var cap = sl.cap || 4, balls = '';
+      for (var i = 0; i < cap; i++) balls += '<i' + (i < sl.free ? '' : ' class="f"') + '></i>';
+      var tags = '';
+      if (sl.mine) tags += '<i class="mine" title="Din tid"></i>';
+      if (!past && sl.groups.length) tags += '<i class="open" title="Öppen grupp"></i>';
+      if (!past && tooDark(S.date, t, S.course, cid)) tags += '<i class="dusk" title="Mörkt före sista hålet"></i>';
+      if (myWatchCovers(t, cid)) tags += '<i class="watch" title="Bevakad"></i>';
+      var status = past ? 'Passerad' : sl.blocked ? 'Stängt' : sl.free === 0 ? 'Fullt' : sl.free === cap ? 'Ledig boll' : sl.free + (sl.free === 1 ? ' plats ledig' : ' platser lediga');
+      var parts = [];
+      if (multi) parts.push(shortName(club(cid)));
+      if (sl.blocked) parts.push(sl.blocked);
+      else if (sl.mine) parts.push('Din bokning');
+      else if (sl.groups.length) parts.push('Öppen grupp · ' + sl.groups[0].name);
+      else if (S.course === 'any' || multi) { var c = candidates(t, 1, cid); if (c.length && clubCourses(cid).length > 1) parts.push(courseName(c[0].course_id) + (c.length > 1 ? ' +' + (c.length - 1) : '')); }
+      if (!multi && sl.free === 0 && !past && !sl.blocked) parts.push('Bevaka för att få besked');
+      var sub = parts.join(' · ');
+      var price = !past && !sl.blocked && sl.free > 0 ? kr(sl.price) : '';
+      var label = t + ', ' + status + (sub ? ', ' + sub : '') + (price ? ', ' + price : '');
+      html += '<button type="button" class="sl-row ' + cls + '" data-t="' + t + '" data-club="' + cid + '" aria-pressed="' + selected + '" aria-label="' + esc(label) + '"' + (past ? ' disabled' : '') + '>' +
+        '<span class="t">' + t + '</span><span class="balls" aria-hidden="true">' + balls + '</span>' +
+        '<span class="st"><b>' + esc(status) + '<span class="tags" aria-hidden="true">' + tags + '</span></b><span>' + esc(sub) + '</span></span>' +
+        '<span class="pr">' + price + '</span></button>';
+    });
   });
-  return shown ? html : '<p class="note" style="padding:16px">Inga tider i det här intervallet. Prova en annan del av dagen eller ett annat datum.</p>';
+  return shown ? html : '<p class="note" style="padding:16px">Inga ' + (S.onlyFree ? 'lediga ' : '') + 'tider för ' + spelare(S.players) + ' i det här intervallet. Prova en annan del av dagen, ett annat datum eller lägg till fler banor.</p>';
 }
 function slotInfoHtml() {
   if (!S.sheet) return '';
@@ -715,22 +799,23 @@ function slotInfoHtml() {
   var cl = club(S.club) || {};
   if (!isPast(S.date, t) && !sl.blocked && tooDark(S.date, t, S.course)) {
     var s = sunTimes(S.date, cl.lat, cl.lng), c = S.course === 'any' ? null : course(S.course), mins = c ? c.round_minutes : 255;
-    out.push('<div class="info dusk">Solen går ned ' + s.set + '. En runda' + (c ? ' på ' + c.holes + ' hål' : '') + ' tar ungefär ' + Math.floor(mins / 60) + ' tim ' + (mins % 60) + ' min, så de sista hålen kan bli mörka.</div>');
+    out.push('<div class="info dusk">Solen går ned ' + s.set + ' vid ' + esc(cl.name) + '. En runda' + (c ? ' på ' + c.holes + ' hål' : '') + ' tar ungefär ' + Math.floor(mins / 60) + ' tim ' + (mins % 60) + ' min, så de sista hålen kan bli mörka.</div>');
   }
   sl.groups.forEach(function (g) {
-    out.push('<div class="info flag"><b>Öppen grupp' + (S.course === 'any' ? ' på ' + esc(courseName(g.course_id)) : '') + ':</b> ' + esc(g.name) + (g.players > 1 ? ' + ' + (g.players - 1) : '') + ' söker fler. ' + g.free + (g.free === 1 ? ' plats' : ' platser') + ' kvar.</div>');
+    out.push('<div class="info flag"><b>Öppen grupp på ' + esc(courseName(g.course_id)) + ':</b> ' + esc(g.name) + (g.players > 1 ? ' + ' + (g.players - 1) : '') + ' söker fler. ' + g.free + (g.free === 1 ? ' plats' : ' platser') + ' kvar.</div>');
   });
   return out.join('');
 }
 function renderAction() {
   var bar = $('actionbar'), btn = $('mainBtn'), alt = $('altBtn');
   $('pOut').textContent = S.players; $('pMinus').disabled = S.players <= 1; $('pPlus').disabled = S.players >= 4;
-  if (S.tab !== 'boka' || !S.clubs.length || !club(S.club) || !clubBookable(S.club)) { bar.hidden = true; return; }
+  if (S.tab !== 'boka' || !S.clubs.length || !bookablePicks().length) { bar.hidden = true; return; }
   bar.hidden = false;
   var sl = S.sheet ? slotFor(S.time) : null, past = isPast(S.date, S.time);
   var cands = sl ? candidates(S.time, S.players) : [];
   var canBook = !past && cands.length > 0;
-  $('sumMain').textContent = S.time + ' · ' + (canBook && S.course === 'any' ? courseName(cands[0].course_id) : courseName(S.course));
+  var cname = canBook ? (bookablePicks().length > 1 ? shortName(club(S.club)) + ', ' : '') + courseName(cands[0].course_id) : (bookablePicks().length > 1 ? shortName(club(S.club)) : courseName(S.course === 'any' ? 'any' : S.course));
+  $('sumMain').textContent = S.time + ' · ' + cname;
   var sub = fmtDate(S.date);
   if (!sl) sub += S.sheetLoading ? ' · laddar…' : '';
   else if (past) sub += ' · har passerat';
@@ -742,14 +827,14 @@ function renderAction() {
   alt.hidden = past || !sl || !!sl.blocked;
   alt.textContent = canBook ? 'Föreslå' : 'Hitta ledig';
   alt.dataset.mode = canBook ? 'propose' : 'find';
+  btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
   if (!sl || past || sl.blocked) { btn.textContent = past ? 'Passerad' : 'Boka'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
   else if (canBook) { btn.textContent = 'Boka'; btn.className = 'btn primary'; btn.disabled = !S.online; btn.dataset.mode = 'book'; }
   else if (watched) { btn.textContent = 'Bevakas'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
-  else { btn.textContent = 'Bevaka'; btn.className = 'btn primary'; btn.style.background = 'var(--flag)'; btn.style.borderColor = 'var(--flag)'; btn.style.color = 'var(--on-flag)'; btn.disabled = !S.online; btn.dataset.mode = 'watch'; return; }
-  btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
+  else { btn.textContent = 'Bevaka'; btn.className = 'btn primary'; btn.style.background = 'var(--flag)'; btn.style.borderColor = 'var(--flag)'; btn.style.color = 'var(--on-flag)'; btn.disabled = !S.online; btn.dataset.mode = 'watch'; }
 }
 
-/* ================= Klubbval ================= */
+/* ================= Välj banor ================= */
 function kmBetween(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return null;
   var r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
@@ -763,26 +848,39 @@ function nearestBookable(from, n) {
     .sort(function (a, b) { return (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km); }).slice(0, n);
 }
 function clubItemHtml(c, km) {
-  var on = clubBookable(c.id), fav = (S.settings.favorite_clubs || []).indexOf(c.id) >= 0;
+  var on = clubBookable(c.id), fav = (S.settings.favorite_clubs || []).indexOf(c.id) >= 0, picked = S.picks.indexOf(c.id) >= 0;
   var ini = c.name.replace(/\b(golfklubb|golf club|golf|gk|g&cc|gcc|country club)\b/gi, '').trim().slice(0, 2).toUpperCase() || c.name.slice(0, 2).toUpperCase();
-  return '<div class="row cirow" style="flex-wrap:nowrap;gap:0"><button type="button" class="ci' + (on ? ' on' : '') + '" data-act="set-club" data-id="' + c.id + '">' +
-    '<span class="tile" aria-hidden="true">' + esc(ini) + '</span><span class="grow"><b>' + esc(c.name) + '</b><span>' + esc(clubWhere(c) || 'Sverige') + '</span><em>' + (on ? 'Boka i TeeTime' : 'Bokas i Min Golf') + (c.id === S.profile.home_club ? ' · hemmaklubb' : '') + '</em></span>' +
+  return '<div class="row cirow" style="flex-wrap:nowrap;gap:0"><button type="button" class="ci' + (on ? ' on' : '') + (picked ? ' picked' : '') + '" data-act="toggle-pick" data-id="' + c.id + '" aria-pressed="' + picked + '">' +
+    '<span class="tile" aria-hidden="true">' + (picked ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : esc(ini)) + '</span><span class="grow"><b>' + esc(c.name) + '</b><span>' + esc(clubWhere(c) || 'Sverige') + '</span><em>' + (on ? 'Boka i TeeTime' : 'Bokas i Min Golf') + (c.id === S.profile.home_club ? ' · hemmaklubb' : '') + '</em></span>' +
     (km != null ? '<span class="km">' + fmtKm(km) + '</span>' : '') + '</button>' +
     '<button type="button" class="star" data-act="fav-club" data-id="' + c.id + '" aria-pressed="' + fav + '" aria-label="' + (fav ? 'Ta bort ' : 'Spara ') + esc(c.name) + (fav ? ' från favoriter' : ' som favorit') + '">' +
     '<svg width="20" height="20" viewBox="0 0 24 24" fill="' + (fav ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></div>';
 }
+function pickFooter() {
+  var n = S.picks.length, nb = bookablePicks().length;
+  return n ? (n + (n === 1 ? ' bana vald' : ' banor valda') + (nb < n ? ' · ' + nb + ' bokas i appen' : '')) : 'Ingen bana vald än';
+}
 function openClubPicker() {
   var counties = S.clubs.map(function (c) { return c.county; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; }).sort(function (a, b) { return a.localeCompare(b, 'sv'); });
-  openSheet('<div class="row between"><h2 id="sheetH">Hitta klubb</h2><button type="button" class="btn link" data-act="close">Stäng</button></div>' +
-    '<input type="search" id="clubSearch" placeholder="Sök klubb, ort eller län" autocomplete="off" aria-label="Sök klubb" value="' + esc(S.clubQ || '') + '">' +
+  openSheet('<div class="row between"><h2 id="sheetH">Var vill du spela?</h2><button type="button" class="btn link" data-act="close">Stäng</button></div>' +
+    '<p class="note" style="margin-top:-6px">Bocka i alla banor du kan tänka dig. Du ser lediga tider på alla samtidigt.</p>' +
+    '<input type="search" id="clubSearch" placeholder="Sök bana, ort eller län" autocomplete="off" aria-label="Sök bana" value="' + esc(S.clubQ || '') + '">' +
     '<div class="chips" id="clubChips">' +
     '<button type="button" class="fchip" data-act="club-near" aria-pressed="' + !!S.geo + '">Nära mig</button>' +
     '<button type="button" class="fchip" data-act="club-filter" data-v="fav" aria-pressed="' + (S.clubFilter === 'fav') + '">Favoriter</button>' +
     '<button type="button" class="fchip" data-act="club-filter" data-v="book" aria-pressed="' + (S.clubFilter === 'book') + '">Boka i appen</button>' +
+    '<button type="button" class="fchip" data-act="club-filter" data-v="picked" aria-pressed="' + (S.clubFilter === 'picked') + '">Valda</button>' +
     '<select id="clubCounty" aria-label="Län" style="width:auto;min-height:34px;padding:4px 10px;border-radius:999px;font-size:.82rem;font-weight:600"><option value="">Alla län</option>' +
     counties.map(function (c) { return '<option' + (S.county === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>' +
     '<div class="clublist" id="clubList">' + clubListHtml() + '</div>' +
-    '<p class="note" style="font-size:.72rem">Klubbdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMaps bidragsgivare</a></p>');
+    '<div class="row between" style="flex-wrap:nowrap;border-top:1px solid var(--line);padding-top:12px"><span class="note" id="pickCount">' + esc(pickFooter()) + '</span>' +
+    '<button type="button" class="btn primary" data-act="picks-done" id="pickDone"' + (S.picks.length ? '' : ' disabled') + '>Visa tider</button></div>' +
+    '<p class="note" style="font-size:.72rem;margin-top:-6px">Klubbdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMaps bidragsgivare</a></p>');
+}
+function refreshPicker() {
+  if ($('clubList')) $('clubList').innerHTML = clubListHtml();
+  if ($('pickCount')) $('pickCount').textContent = pickFooter();
+  if ($('pickDone')) $('pickDone').disabled = !S.picks.length;
 }
 function clubListHtml() {
   var q = (S.clubQ || '').trim().toLowerCase(), favs = S.settings.favorite_clubs || [];
@@ -791,18 +889,20 @@ function clubListHtml() {
     if (q && (c.name + ' ' + (c.city || '') + ' ' + (c.county || '') + ' ' + (c.municipality || '')).toLowerCase().indexOf(q) < 0) return false;
     if (S.clubFilter === 'fav' && favs.indexOf(c.id) < 0) return false;
     if (S.clubFilter === 'book' && !clubBookable(c.id)) return false;
+    if (S.clubFilter === 'picked' && S.picks.indexOf(c.id) < 0) return false;
     if (S.county && c.county !== S.county) return false;
     return true;
   }).map(function (c) { return { c: c, km: ref ? kmBetween(ref, c) : null }; });
   list.sort(function (a, b) {
+    var pa = S.picks.indexOf(a.c.id) >= 0, pb = S.picks.indexOf(b.c.id) >= 0;
     var fa = favs.indexOf(a.c.id) >= 0, fb = favs.indexOf(b.c.id) >= 0;
     if (S.geo) return (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km);
-    return (fb - fa) || (clubBookable(b.c.id) - clubBookable(a.c.id)) || a.c.name.localeCompare(b.c.name, 'sv');
+    return (pb - pa) || (fb - fa) || (clubBookable(b.c.id) - clubBookable(a.c.id)) || a.c.name.localeCompare(b.c.name, 'sv');
   });
   var total = list.length, shown = list.slice(0, 80);
-  if (!total) return '<p class="note" style="padding:12px 0">Ingen klubb matchar. Prova ett annat namn eller ta bort filtret.</p>';
+  if (!total) return '<p class="note" style="padding:12px 0">Ingen bana matchar. Prova ett annat namn eller ta bort filtret.</p>';
   return shown.map(function (x) { return clubItemHtml(x.c, x.km); }).join('') +
-    (total > shown.length ? '<p class="note" style="padding:10px 0">Visar ' + shown.length + ' av ' + total + ' klubbar. Sök för att hitta fler.</p>' : '');
+    (total > shown.length ? '<p class="note" style="padding:10px 0">Visar ' + shown.length + ' av ' + total + ' banor. Sök för att hitta fler.</p>' : '');
 }
 
 /* ================= Rendering: Mina tider ================= */
@@ -1069,7 +1169,7 @@ function closeSheet() { $('sheet').hidden = true; $('sheetCard').innerHTML = '';
 
 var draft = null;
 function openConfirm(courseId, date, time, players, extra) {
-  var c = course(courseId), cl = club(c.club_id), row = S.sheet && S.sheet.key === cl.id + '|' + date ? sheetRow(courseId, time) : null;
+  var c = course(courseId), cl = club(c.club_id), shc = sheetOf(cl.id), row = shc && shc.key === cl.id + '|' + date ? shc.rows[courseId + '|' + time] : null;
   var unit = row ? row.price : c.price + (isWeekend(date) ? c.weekend_add : 0);
   draft = { course: courseId, date: date, time: time, players: players, watchId: extra && extra.watchId };
   var favs = S.settings.favorite_friends || [], friends = S.friends.filter(function (f) { return f.status === 'accepted'; }).map(function (f) { return f.display_name; });
@@ -1122,7 +1222,7 @@ function openPropose(courseId) {
     '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="send-prop" data-c="' + courseId + '">Skicka förslag</button></div>');
 }
 function openEdit(r) {
-  var c = course(r.course_id) || { capacity: 4 }, row = S.sheet && S.sheet.key === r.club_id + '|' + r.play_date ? sheetRow(r.course_id, hm(r.tee_time)) : null;
+  var c = course(r.course_id) || { capacity: 4 }, she = sheetOf(r.club_id), row = she && she.key === r.club_id + '|' + r.play_date ? she.rows[r.course_id + '|' + hm(r.tee_time)] : null;
   var maxP = Math.min(c.capacity, r.players + (row ? row.free : 0)); if (!row) maxP = c.capacity;
   var opts = ''; for (var i = 1; i <= maxP; i++) opts += '<option value="' + i + '"' + (i === r.players ? ' selected' : '') + '>' + spelare(i) + '</option>';
   var g = ''; for (var k = 2; k <= 4; k++) g += '<div class="field" data-gi="' + k + '"' + (k > r.players ? ' hidden' : '') + '><label for="eg' + k + '">Spelare ' + k + '</label><input type="text" id="eg' + k + '" maxlength="40" value="' + esc((r.guests || [])[k - 2] || '') + '"></div>';
@@ -1189,13 +1289,9 @@ function renderAll() {
 async function refreshAll() {
   try {
     await Promise.all([loadStatic(), loadMe()]);
-    if (!S.club || !club(S.club)) {
-      var favs0 = (S.settings.favorite_clubs || []).filter(function (id) { return club(id); });
-      var firstBook = S.clubs.filter(function (c) { return clubBookable(c.id); })[0];
-      var favBook = favs0.filter(function (id) { return clubBookable(id); })[0];
-      S.club = S.profile.home_club && club(S.profile.home_club) ? S.profile.home_club : favBook || (firstBook || {}).id || favs0[0] || (S.clubs[0] || {}).id || null;
-      S.scrollToSel = true;
-    }
+    S.picks = S.picks.filter(function (id) { return club(id); }); savePicks();
+    if (S.picks.indexOf(S.club) < 0) S.club = bookablePicks()[0] || S.picks[0] || null;
+    S.scrollToSel = true;
     await Promise.all([loadRounds(), loadWatches(), loadFriends(), loadProposals(), loadNotifs()]);
     setOnline(true); saveCache(); renderAll(); loadSheet(true); subscribeSheet();
   } catch (e) { if (isNetErr(e && e.message)) setOnline(false); else toast(errMsg(e)); renderAll(); }
@@ -1218,15 +1314,16 @@ function subscribeMain() {
     .subscribe();
 }
 function subscribeSheet() {
-  if (!S.club) return;
-  if (chSheet && chSheet._club === S.club) return;
-  if (chSheet) sb.removeChannel(chSheet);
-  chSheet = sb.channel('sheet-' + S.club).on('postgres_changes', { event: '*', schema: 'public', table: 'sheet_events', filter: 'club_id=eq.' + S.club }, function (p) {
+  var ids = bookablePicks(), key = ids.join(',');
+  if (chSheet && chSheet._key === key) return;
+  if (chSheet) { sb.removeChannel(chSheet); chSheet = null; }
+  if (!ids.length) return;
+  chSheet = sb.channel('sheet-' + key.slice(0, 120)).on('postgres_changes', { event: '*', schema: 'public', table: 'sheet_events', filter: ids.length === 1 ? 'club_id=eq.' + ids[0] : 'club_id=in.(' + key + ')' }, function (p) {
     var d = (p.new && p.new.play_date) || (p.old && p.old.play_date);
     if (!d || d === S.date) scheduleSheetReload();
     loadRounds().then(function () { renderMine(); });
   }).subscribe();
-  chSheet._club = S.club;
+  chSheet._key = key;
 }
 
 /* ================= Notiser i telefonen ================= */
@@ -1269,26 +1366,32 @@ function openNotifTarget(n) {
   var d = n.data || {};
   closeSheet();
   if (n.kind === 'watch' && d.club_id) {
-    S.club = d.club_id; S.date = d.date; S.time = d.time; S.course = d.course_id || 'any';
-    setTab('boka'); subscribeSheet(); loadSheet(true);
+    if (S.picks.indexOf(d.club_id) < 0) { S.picks.push(d.club_id); savePicks(); }
+    S.club = d.club_id; S.date = d.date; S.time = d.time; S.course = d.course_id || 'any'; S.scrollToSel = true;
+    setTab('boka'); subscribeSheet(); loadSheet(true).then(function () { selectSlot(d.club_id, d.time); renderBoka(); });
   } else if (/^(proposal|friend)/.test(n.kind)) setTab('vanner');
   else setTab('mina');
 }
 async function findFree() {
-  toast('Letar efter närmaste lediga tid…');
+  var ids = bookablePicks(); if (!ids.length) return;
+  toast('Letar efter närmaste lediga tid på dina banor…');
+  var target = toMin(S.time);
   for (var i = 0; i < 10; i++) {
     var d = addDays(S.date, i); if (d < today()) continue;
-    var r = await sb.rpc('get_day_sheet', { p_club: S.club, p_date: d }); if (r.error) break;
-    var best = null, target = toMin(S.time);
-    (r.data || []).forEach(function (x) {
-      var t = hm(x.tee_time);
-      if (S.course !== 'any' && x.course_id !== S.course) return;
-      if (x.blocked || x.free < S.players || isPast(d, t)) return;
-      if (!best || Math.abs(toMin(t) - target) < Math.abs(toMin(best) - target)) best = t;
+    var res = await Promise.all(ids.map(function (cid) { return sb.rpc('get_day_sheet', { p_club: cid, p_date: d }); }));
+    var best = null;
+    res.forEach(function (r, k) {
+      if (r.error) return;
+      (r.data || []).forEach(function (x) {
+        var t = hm(x.tee_time);
+        if (ids.length === 1 && S.course !== 'any' && x.course_id !== S.course) return;
+        if (x.blocked || x.free < S.players || isPast(d, t)) return;
+        if (!best || Math.abs(toMin(t) - target) < Math.abs(toMin(best.t) - target)) best = { t: t, club: ids[k] };
+      });
     });
-    if (best) { S.date = d; S.time = best; S.sheet = null; await loadSheet(true); toast('Närmaste lediga: ' + fmtDate(d) + ' kl ' + best); return; }
+    if (best) { S.date = d; S.sheet = null; S.time = best.t; S.club = best.club; S.scrollToSel = true; await loadSheet(true); selectSlot(best.club, best.t); renderBoka(); toast('Närmaste lediga: ' + fmtDate(d) + ' kl ' + best.t + ', ' + shortName(club(best.club))); return; }
   }
-  toast('Hittade ingen ledig tid de närmaste tio dagarna. Bevaka i stället.');
+  toast('Ingen ledig tid de närmaste tio dagarna. Bevaka i stället eller lägg till fler banor.');
 }
 
 /* ================= Åtgärder ================= */
@@ -1307,8 +1410,30 @@ async function onAction(e) {
       case 'close': closeSheet(); break;
       case 'goto': closeSheet(); setTab(el.dataset.tab); break;
       case 'done': closeSheet(); setTab('mina'); break;
-      case 'pick-club': openClubPicker(); break;
-      case 'set-club': S.club = id; S.course = 'any'; S.sheet = null; S.scrollToSel = true; closeSheet(); setTab('boka'); renderBoka(); subscribeSheet(); if (clubBookable(id)) loadSheet(true); saveCache(); break;
+      case 'pick-club': case 'open-picker': openClubPicker(); break;
+      case 'toggle-pick': {
+        var pi = S.picks.indexOf(id);
+        if (pi >= 0) S.picks.splice(pi, 1); else { if (S.picks.length >= 10) { toast('Du kan välja högst tio banor åt gången.'); return; } S.picks.push(id); }
+        savePicks(); refreshPicker();
+        if ($('sheet').hidden) renderBoka();
+        break;
+      }
+      case 'remove-pick': {
+        S.picks = S.picks.filter(function (x) { return x !== id; }); savePicks();
+        if (S.club === id) { S.club = bookablePicks()[0] || null; S.course = 'any'; }
+        S.sheet = null; S.sheetKey = ''; renderBoka(); subscribeSheet(); loadSheet(true);
+        break;
+      }
+      case 'picks-done': {
+        if (!S.picks.length) { toast('Välj minst en bana.'); return; }
+        closeSheet(); setTab('boka');
+        if (S.picks.indexOf(S.club) < 0 || !clubBookable(S.club)) S.club = bookablePicks()[0] || S.picks[0];
+        if (bookablePicks().length !== 1) S.course = 'any';
+        S.sheet = null; S.sheetKey = ''; S.scrollToSel = true; if (bookablePicks().length > 1) S.onlyFree = true;
+        renderBoka(); subscribeSheet(); loadSheet(true);
+        break;
+      }
+      case 'set-club': if (S.picks.indexOf(id) < 0) S.picks.push(id); savePicks(); S.club = id; S.course = 'any'; S.sheet = null; S.sheetKey = ''; S.scrollToSel = true; closeSheet(); setTab('boka'); renderBoka(); subscribeSheet(); loadSheet(true); break;
       case 'fav-club': {
         if (!needOnline()) return;
         var favs = (S.settings.favorite_clubs || []).slice(), ix = favs.indexOf(id);
@@ -1376,8 +1501,9 @@ async function onAction(e) {
       case 'unwatch': { if (!needOnline()) return; await sb.from('watches').delete().eq('id', id); S.watches = S.watches.filter(function (x) { return x.id !== id; }); renderWatch(); renderBoka(); toast('Bevakningen är borttagen'); break; }
       case 'book-watch': {
         var ww = S.watches.filter(function (x) { return x.id === id; })[0]; if (!ww || !ww.ready_slot) return;
+        if (S.picks.indexOf(ww.club_id) < 0) { S.picks.push(ww.club_id); savePicks(); }
         S.club = ww.club_id; S.date = ww.play_date; S.time = ww.ready_slot.tee_time; S.players = ww.players; S.course = ww.course_id || 'any';
-        await loadSheet(true); subscribeSheet();
+        await loadSheet(true); selectSlot(ww.club_id, ww.ready_slot.tee_time); subscribeSheet();
         openConfirm(ww.ready_slot.course_id, ww.play_date, ww.ready_slot.tee_time, ww.players, { watchId: ww.id });
         break;
       }
@@ -1393,7 +1519,7 @@ async function onAction(e) {
         break;
       }
       case 'copy-round': { var rr = S.rounds.filter(function (x) { return x.id === id; })[0]; if (rr) copyText(inviteText(rr), 'Inbjudan kopierad'); break; }
-      case 'edit': { var re = S.rounds.filter(function (x) { return x.id === id; })[0]; if (re) { if (S.club !== re.club_id || S.date !== re.play_date) { S.club = re.club_id; S.date = re.play_date; await loadSheet(true); } openEdit(re); } break; }
+      case 'edit': { var re = S.rounds.filter(function (x) { return x.id === id; })[0]; if (re) openEdit(re); break; }
       case 'save-edit': {
         if (!needOnline()) return;
         var np = +$('ePlayers').value, eg = [];
@@ -1584,6 +1710,7 @@ async function startApp(session) {
   S.session = session; S.uid = session.user.id; S.email = session.user.email || '';
   showApp();
   var hadCache = loadCache();
+  try { S.picks = JSON.parse(lsGet('tt-picks-' + S.uid) || '[]') || []; } catch (e) { S.picks = []; }
   var lt = lsGet('tt-tab'); if (lt) S.tab = lt;
   var hs = location.hash.replace('#', ''); if (['boka', 'mina', 'vanner', 'bevaka', 'mer'].indexOf(hs) >= 0) { S.tab = hs; history.replaceState(null, '', APP_URL + location.search); }
   setTab(S.tab);
@@ -1630,7 +1757,7 @@ function boot() {
       var d = e.target.closest('[data-d]'); if (d) { S.date = d.dataset.d; S.scrollToSel = true; loadSheet(); renderBoka(); return; }
       var c = e.target.closest('[data-c]'); if (c && c.classList.contains('fchip')) { S.course = c.dataset.c; renderBoka(); return; }
       var f = e.target.closest('[data-f]'); if (f) { S.filter = f.dataset.f; renderBoka(); return; }
-      var s = e.target.closest('.sl-row'); if (s && !s.disabled) { S.time = s.dataset.t; renderBoka(); return; }
+      var s = e.target.closest('.sl-row'); if (s && !s.disabled) { selectSlot(s.dataset.club, s.dataset.t); renderBoka(); return; }
     }
     onAction(e);
   });
