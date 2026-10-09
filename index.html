@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>TeeTime</title>
 <meta name="description" content="Boka starttider, bevaka fulla tider och bjud in golfvänner.">
-<meta name="theme-color" content="#1d5c3b">
+<meta name="theme-color" content="#F6F7F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1712" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -13,31 +14,34 @@
 <meta name="apple-mobile-web-app-title" content="TeeTime">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
-/* Layout: mobilapp i en kolumn. Flikmeny längst ned, åtgärdsfält ovanför, tee-sheet som rutnät. */
+/* Layout: mobilapp i en kolumn. Flikmeny längst ned, åtgärdsfält ovanför, startlista som rader med en boll per plats. */
 :root {
-  --bg: #f0f3ee; --surface: #ffffff; --ink: #14281e; --muted: #5b6e63; --line: #d5ddd5;
-  --green: #1d5c3b; --on-green: #ffffff; --tint: #e3ece4;
-  --free: #2f8a57; --few: #b97d0b; --full: #b5473c; --flag: #f2c230; --on-flag: #2a2200; --dusk: #4a4f8a;
-  --shadow: 0 1px 2px rgba(20,40,30,.10);
-  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --bg: #F6F7F2; --surface: #FFFFFF; --ink: #0E1B14; --muted: #56655B; --line: #DCE2D9; --hair: #EEF1EC;
+  --green: #1F6B43; --green-ink: #164F31; --on-green: #FFFFFF; --tint: #E4EFE6;
+  --free: #1F6B43; --few: #B9862B; --full: #B4483C; --flag: #F2C230; --on-flag: #2A2200; --dusk: #4B4E8C;
+  --night: #0E1B14; --on-night: #F6F7F2;
+  --shadow: 0 1px 2px rgba(14,27,20,.08);
+  --font-display: "Familjen Grotesk", "Trebuchet MS", system-ui, sans-serif;
   --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --nav-h: 62px;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --nav-h: 64px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0e1a14; --surface: #15251c; --ink: #e6efe8; --muted: #93a79b; --line: #27392e;
-    --green: #5fbf88; --on-green: #0b1a12; --tint: #1d3326; --free: #5fbf88; --few: #e0b24a; --full: #e07a6e; --dusk: #9aa0e6;
+    --bg: #0D1712; --surface: #14211A; --ink: #E8EFE9; --muted: #9AAB9F; --line: #24362B; --hair: #1B2B22;
+    --green: #5FC08A; --green-ink: #8ED6AD; --on-green: #08130D; --tint: #1B3024; --free: #5FC08A; --few: #E0B24A; --full: #E37B6E; --dusk: #A2A6EC;
+    --night: #050B08; --on-night: #E8EFE9;
     --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0e1a14; --surface: #15251c; --ink: #e6efe8; --muted: #93a79b; --line: #27392e;
-  --green: #5fbf88; --on-green: #0b1a12; --tint: #1d3326; --free: #5fbf88; --few: #e0b24a; --full: #e07a6e; --dusk: #9aa0e6;
+  --bg: #0D1712; --surface: #14211A; --ink: #E8EFE9; --muted: #9AAB9F; --line: #24362B; --hair: #1B2B22;
+  --green: #5FC08A; --green-ink: #8ED6AD; --on-green: #08130D; --tint: #1B3024; --free: #5FC08A; --few: #E0B24A; --full: #E37B6E; --dusk: #A2A6EC;
+  --night: #050B08; --on-night: #E8EFE9;
   --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
 }
 :root.big { font-size: 112.5%; }
@@ -49,7 +53,7 @@ button { cursor: pointer; }
 a { color: var(--green); }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 [hidden] { display: none !important; }
-.wrap { max-width: 720px; margin-inline: auto; padding-block: 14px calc(var(--nav-h) + 110px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.wrap { max-width: 720px; margin-inline: auto; padding-block: 14px calc(var(--nav-h) + 150px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
 header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.02em; }
 .brand svg { width: 28px; height: 28px; flex: none; }
@@ -232,16 +236,84 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 .seg.two { grid-template-columns: repeat(2, 1fr); }
 .seg button { border: 0; background: transparent; border-radius: 7px; padding: 8px 4px; font-size: .82rem; font-weight: 600; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-.clublist { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
-.clublist button { text-align: left; border: 0; border-top: 1px solid var(--line); background: transparent; padding: 12px 4px; }
-.clublist button:first-child { border-top: 0; }
-.clublist button b { display: block; }
+.clublist { display: flex; flex-direction: column; max-height: 55vh; overflow-y: auto; overscroll-behavior: contain; }
+
+/* Startlista: en rad per starttid, en boll per plats */
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sl { display: flex; flex-direction: column; margin-inline: -16px; border-top: 1px solid var(--line); }
+.sl-row { display: grid; grid-template-columns: 3.6rem auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 54px; padding: 6px 16px; border: 0; border-bottom: 1px solid var(--hair); background: var(--surface); color: var(--ink); text-align: left; width: 100%; }
+.sl-row .t { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sl-row .balls { display: flex; gap: 5px; }
+.sl-row .balls i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--free); box-sizing: border-box; display: block; }
+.sl-row .balls i.f { background: var(--free); }
+.sl-row.few .balls i { border-color: var(--few); } .sl-row.few .balls i.f { background: var(--few); }
+.sl-row.full .balls i { border-color: var(--full); background: var(--full); opacity: .55; }
+.sl-row.full { color: var(--muted); }
+.sl-row .st { display: flex; flex-direction: column; min-width: 0; }
+.sl-row .st b { font-size: .92rem; font-weight: 600; }
+.sl-row .st span { font-size: .78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-row .pr { font-family: var(--font-mono); font-size: .82rem; font-variant-numeric: tabular-nums; }
+.sl-row.past { opacity: .4; }
+.sl-row.blocked { background: repeating-linear-gradient(135deg, var(--surface) 0 7px, var(--hair) 7px 14px); color: var(--muted); }
+.sl-row.blocked .balls i, .sl-row.blocked .balls i.f { border-color: var(--line); background: transparent; opacity: 1; }
+.sl-row .tags { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.sl-row .tags i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.sl-row .tags i.dusk { background: var(--dusk); } .sl-row .tags i.open { background: var(--flag); } .sl-row .tags i.mine { background: var(--green); } .sl-row .tags i.watch { border: 1.5px solid currentColor; }
+.sl-row[aria-pressed="true"] { background: var(--night); color: var(--on-night); }
+.sl-row[aria-pressed="true"] .st span { color: var(--on-night); opacity: .75; }
+.sl-row[aria-pressed="true"] .balls i { border-color: var(--on-night); opacity: 1; }
+.sl-row[aria-pressed="true"] .balls i.f { background: var(--on-night); }
+
+/* Klubbhuvud och klubbval */
+.clubhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.clubhead button.name { border: 0; background: transparent; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--ink); }
+.clubhead .name small { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.clubhead .name b { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; display: flex; align-items: center; gap: 6px; }
+.clubhead .name b svg { flex: none; color: var(--green); }
+.cirow { border-top: 1px solid var(--hair); }
+.cirow:first-child { border-top: 0; }
+.ci { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border: 0; background: transparent; width: 100%; text-align: left; color: var(--ink); min-width: 0; }
+.ci .tile { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; flex: none; background: var(--hair); color: var(--muted); }
+.ci.on .tile { background: var(--green); color: var(--on-green); }
+.ci .grow b { display: block; font-size: 1rem; }
+.ci .grow span { display: block; font-size: .8rem; color: var(--muted); }
+.ci .grow em { display: block; font-style: normal; font-size: .75rem; font-weight: 700; color: var(--muted); }
+.ci.on .grow em { color: var(--green); }
+.ci .km { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.star { border: 0; background: transparent; width: 40px; height: 40px; display: grid; place-items: center; color: var(--muted); flex: none; }
+.star[aria-pressed="true"] { color: var(--few); }
+
+/* Kort med tyngd */
+.ticket { background: var(--green); color: var(--on-green); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; }
+.ticket .top { padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ticket .eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .85; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.ticket .code { font-family: var(--font-mono); font-size: .82rem; background: rgba(255,255,255,.16); padding: 3px 8px; border-radius: 8px; letter-spacing: .04em; }
+.ticket .big { font-family: var(--font-display); font-size: 2.8rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.ticket .perf { border-top: 2px dashed rgba(255,255,255,.35); margin: 0 14px; }
+.ticket .bot { padding: 12px 18px; font-size: .88rem; opacity: .95; }
+.ticket .acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); border-top: 1px solid rgba(255,255,255,.18); }
+.ticket .acts > * { padding: 14px 4px; text-align: center; color: inherit; font-weight: 700; font-size: .9rem; text-decoration: none; background: transparent; border: 0; border-left: 1px solid rgba(255,255,255,.18); }
+.ticket .acts > *:first-child { border-left: 0; }
+.readycard { background: var(--flag); color: var(--on-flag); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.readycard .eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.readycard .big { font-family: var(--font-mono); font-size: 2rem; font-weight: 600; }
+.readycard .btn { background: var(--night); color: var(--on-night); border-color: var(--night); }
+.darkcard { background: var(--night); color: var(--on-night); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.darkcard .note { color: var(--on-night); opacity: .8; }
+.darkcard input { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.2); color: var(--on-night); font-family: var(--font-mono); }
+.darkcard label { color: var(--on-night); opacity: .8; }
+.pill { font-size: .72rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(242,194,48,.2); color: var(--flag); }
+.notbook { display: flex; flex-direction: column; gap: 12px; }
+.notbook .big { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; }
 
 /* Inloggning */
-.auth { min-height: 100vh; display: grid; place-items: center; padding-block: 24px; }
-.auth .card { width: 100%; max-width: 420px; }
-.hero { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.hero p { color: var(--muted); }
+.auth { min-height: 100vh; display: flex; flex-direction: column; justify-content: flex-end; margin-inline: -16px; background: var(--green); color: var(--on-green); }
+.auth .hero { flex: 1; padding: 48px 24px 28px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; position: relative; overflow: hidden; min-height: 280px; }
+.auth .hero h1 { font-size: 3.2rem; letter-spacing: -.03em; line-height: .95; }
+.auth .hero p { font-size: 1.1rem; max-width: 22rem; opacity: .9; }
+.auth .ring { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.14); }
+.auth .ball { position: absolute; width: 28px; height: 28px; border-radius: 50%; background: var(--flag); }
+.auth .panel { background: var(--bg); color: var(--ink); border-radius: 26px 26px 0 0; padding: 22px 20px calc(28px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; max-width: 520px; width: 100%; margin-inline: auto; }
 
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 92px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 30; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s; }
 #toast.on { opacity: 1; }
@@ -258,14 +330,15 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 
 <!-- ============ INLOGGNING ============ -->
 <div class="auth" id="authView" hidden>
-  <div class="card">
-    <div class="hero">
-      <div class="brand">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--green)"/><path d="M12 24V8l9 4-9 4" fill="none" stroke="var(--on-green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="14" cy="25" rx="6" ry="1.6" fill="var(--on-green)" opacity=".55"/></svg>
-        TeeTime
-      </div>
-      <p>Boka starttider, bevaka fulla tider och bjud in dina golfvänner.</p>
-    </div>
+  <div class="hero">
+    <span class="ring" style="top:40px;right:-60px;width:240px;height:240px"></span>
+    <span class="ring" style="top:84px;right:-6px;width:150px;height:150px"></span>
+    <span class="ball" style="top:146px;right:56px"></span>
+    <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><path d="M12 28V4l11 5-11 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+    <h1>TeeTime</h1>
+    <p>Hitta en tid, bevaka den fulla och få med golfvännerna.</p>
+  </div>
+  <div class="panel">
     <div class="seg two" id="authSeg">
       <button type="button" data-mode="in" aria-pressed="true">Logga in</button>
       <button type="button" data-mode="up" aria-pressed="false">Skapa konto</button>
@@ -283,11 +356,8 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 
 <!-- ============ APPEN ============ -->
 <div class="wrap" id="appView" hidden>
-  <header class="top">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--green)"/><path d="M12 24V8l9 4-9 4" fill="none" stroke="var(--on-green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="14" cy="25" rx="6" ry="1.6" fill="var(--on-green)" opacity=".55"/></svg>
-      TeeTime
-    </div>
+  <header class="top clubhead">
+    <div id="headTitle" style="min-width:0"></div>
     <button type="button" class="iconbtn" id="bellBtn" aria-label="Notiser">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
       <span class="badge" id="bellCount" hidden></span>
@@ -306,7 +376,12 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 <div class="actionbar" id="actionbar" hidden>
   <div class="in">
     <div class="sum"><strong id="sumMain">Välj tid</strong><span id="sumSub"></span></div>
-    <div class="row">
+    <div class="row" style="flex-wrap:nowrap">
+      <div class="stepper" role="group" aria-label="Antal spelare" style="min-height:44px">
+        <button type="button" id="pMinus" aria-label="Färre spelare">−</button>
+        <output id="pOut" aria-live="polite">2</output>
+        <button type="button" id="pPlus" aria-label="Fler spelare">+</button>
+      </div>
       <button type="button" class="btn" id="altBtn">Föreslå</button>
       <button type="button" class="btn primary" id="mainBtn">Boka</button>
     </div>
@@ -488,7 +563,7 @@ function tooDark(date, time, cid) {
 }
 
 async function loadSheet(force) {
-  if (!S.club || !sb) return;
+  if (!S.club || !sb || !clubBookable(S.club)) return;
   var key = S.club + '|' + S.date;
   if (!force && S.sheetKey === key && S.sheet) return;
   var myKey = key; S.sheetLoading = !S.sheet || S.sheetKey !== key; S.sheetKey = key;
@@ -510,15 +585,26 @@ async function loadSheet(force) {
 function scheduleSheetReload() { clearTimeout(sheetTimer); sheetTimer = setTimeout(function () { loadSheet(true); }, 250); }
 
 /* ================= Rendering: Boka ================= */
+function clubBookable(cid) { return clubCourses(cid).length > 0; }
+function clubWhere(c) { return [c.city || c.municipality, c.county || c.region].filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · '); }
+function renderHead() {
+  var h = $('headTitle'); if (!h) return;
+  var cl = club(S.club);
+  if (!cl) { h.innerHTML = '<div class="brand">TeeTime</div>'; return; }
+  var n = clubCourses(cl.id).length;
+  h.innerHTML = '<button type="button" class="name" data-act="pick-club" aria-label="Byt klubb, vald: ' + esc(cl.name) + '"><small>' + esc([clubWhere(cl), n ? n + (n === 1 ? ' bana' : ' banor') : 'Ej ansluten'].filter(Boolean).join(' · ')) + '</small>' +
+    '<b><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(cl.name) + '</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></b></button>';
+}
 function renderBoka() {
   var v = $('view-boka');
+  renderHead();
   if (!S.clubs.length) {
-    v.innerHTML = '<div class="card empty"><strong>Inga klubbar än</strong>När en klubb har registrerat sig i TeeTime kan du boka här. Driver du en klubb? Registrera den under Profil.</div>';
+    v.innerHTML = '<div class="card empty"><strong>Laddar klubbar…</strong>Om inget händer, kontrollera anslutningen.</div>';
     renderAction(); return;
   }
   var cl = club(S.club) || S.clubs[0];
+  if (!clubBookable(cl.id)) { v.innerHTML = notBookableHtml(cl); renderAction(); return; }
   var html = '';
-  html += '<div class="card"><button type="button" class="clubbtn" data-act="pick-club"><span class="grow"><b>' + esc(cl.name) + '</b><span class="note">' + esc([cl.city, cl.region].filter(Boolean).join(', ') || 'Golfklubb') + '</span></span><span class="chev">Byt klubb</span></button></div>';
 
   // Datum
   var strip = '';
@@ -528,37 +614,58 @@ function renderBoka() {
   }
   var inStrip = S.date <= addDays(today(), 13);
   strip += '<label class="day other"' + (inStrip ? '' : ' aria-pressed="true" style="background:var(--green);color:var(--on-green);border-color:var(--green)"') + '>' + (inStrip ? 'Annat datum' : esc(fmtDate(S.date))) + '<input type="date" id="fDate" min="' + today() + '" max="' + addDays(today(), cl.booking_days || 30) + '" value="' + S.date + '" aria-label="Välj annat datum"></label>';
-  html += '<div class="card"><div class="row between"><span class="lbl">Datum</span><span class="note">' + esc(longDate(S.date)) + (isWeekend(S.date) ? ' · helgpris' : '') + '</span></div><div class="strip" id="strip">' + strip + '</div></div>';
+  html += '<div class="strip" id="strip">' + strip + '</div>';
 
   // Banor
   var cs = clubCourses(cl.id);
-  var copts = [{ id: 'any', name: 'Valfri bana', sub: 'Första lediga' }].concat(cs.map(function (c) { return { id: c.id, name: c.name, sub: c.holes + ' hål · par ' + c.par + (c.length_m ? ' · ' + c.length_m.toLocaleString('sv-SE') + ' m' : ''), price: c.price + (isWeekend(S.date) ? c.weekend_add : 0) }; }));
-  if (cs.length > 1 || S.course !== 'any') {
-    html += '<div class="card"><span class="lbl">Bana</span><div class="courses">' + copts.map(function (c) {
-      return '<button type="button" class="course" data-c="' + c.id + '" aria-pressed="' + (S.course === c.id) + '"><b>' + esc(c.name) + '</b><small>' + esc(c.sub) + '</small>' + (c.price != null ? '<span class="p">' + kr(c.price) + '</span>' : '') + '</button>';
-    }).join('') + '</div></div>';
+  if (cs.length > 1) {
+    html += '<div class="chips" role="group" aria-label="Bana">' + [{ id: 'any', name: 'Valfri bana' }].concat(cs).map(function (c) {
+      return '<button type="button" class="fchip" data-c="' + c.id + '" aria-pressed="' + (S.course === c.id) + '">' + esc(c.name) + '</button>';
+    }).join('') + '</div>';
   }
+  var sc = S.course !== 'any' ? course(S.course) : (cs.length === 1 ? cs[0] : null);
+  if (sc) html += '<p class="note">' + esc(sc.holes + ' hål · par ' + sc.par + (sc.length_m ? ' · ' + sc.length_m.toLocaleString('sv-SE') + ' m' : '') + ' · greenfee ' + kr(sc.price + (isWeekend(S.date) ? sc.weekend_add : 0)) + (sc.twilight_from && sc.twilight_pct ? ' · ' + sc.twilight_pct + ' % rabatt från ' + hm(sc.twilight_from) : '')) + '</p>';
 
-  html += '<div class="card form2"><div class="field"><label for="fTime">Önskad starttid</label><input type="time" id="fTime" value="' + S.time + '"></div>' +
-    '<div class="field"><span class="lbl" id="lblPlayers">Antal spelare (max 4)</span><div class="stepper" role="group" aria-labelledby="lblPlayers"><button type="button" data-act="pminus" aria-label="Färre spelare"' + (S.players <= 1 ? ' disabled' : '') + '>−</button><output aria-live="polite">' + S.players + '</output><button type="button" data-act="pplus" aria-label="Fler spelare"' + (S.players >= 4 ? ' disabled' : '') + '>+</button></div></div></div>';
-
-  // Tee-sheet
+  // Startlista
   var s = sunTimes(S.date, cl.lat, cl.lng);
-  html += '<div class="card"><div class="row between"><h2>Starttider · ' + esc(fmtDate(S.date)) + '</h2><div class="sun">' + (s.set ? '<span>Sol upp <b>' + s.rise + '</b></span><span>ned <b>' + s.set + '</b></span>' : '') + '</div></div>' +
+  html += '<div class="card" style="padding-bottom:0;gap:10px;overflow:hidden"><div class="sheet-head"><h2>Startlista · ' + esc(fmtDate(S.date)) + '</h2>' +
+    '<label class="row" style="gap:6px;font-size:.8rem;color:var(--muted)" for="fTime">Gå till<input type="time" id="fTime" value="' + S.time + '" style="width:auto;min-height:36px;padding:4px 8px"></label></div>' +
     '<div class="row between"><div class="chips">' +
     [['all', 'Hela dagen'], ['am', 'Morgon'], ['mid', 'Mitt på dagen'], ['pm', 'Eftermiddag']].map(function (f) { return '<button type="button" class="fchip" data-f="' + f[0] + '" aria-pressed="' + (S.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') +
-    '</div><button type="button" class="fchip" data-act="onlyfree" aria-pressed="' + S.onlyFree + '">Bara lediga</button></div>';
-  if (S.sheetLoading || !S.sheet) html += '<div class="skeleton" aria-label="Laddar starttider"></div>';
-  else html += '<div class="grid" role="group" aria-label="Starttider">' + gridHtml() + '</div>';
-  html += '<div class="legend"><span><i style="background:var(--free)"></i>Ledigt</span><span><i style="background:var(--few)"></i>För få platser</span><span><i style="background:var(--full)"></i>Fullt</span><span><i style="background:var(--flag)"></i>Öppen grupp</span><span><i style="background:var(--green)"></i>Din tid</span><span><i style="background:var(--dusk)"></i>Mörkt före sista hålet</span><span><i style="border:1.5px solid var(--ink)"></i>Bevakad</span></div>';
-  html += '<div class="list">' + slotInfoHtml() + '</div></div>';
+    '<button type="button" class="fchip" data-act="onlyfree" aria-pressed="' + S.onlyFree + '">Bara lediga</button></div>' +
+    (s.set ? '<span class="sun">Sol ned <b>' + s.set + '</b></span>' : '') + '</div>';
+  if (S.sheetLoading || !S.sheet) html += '<div class="skeleton" aria-label="Laddar starttider" style="margin-bottom:16px"></div>';
+  else html += '<div class="sl" role="group" aria-label="Starttider">' + listHtml() + '</div>';
+  html += '</div>';
+  var info = slotInfoHtml();
+  if (info) html += '<div class="list">' + info + '</div>';
+  html += '<details class="note"><summary>Teckenförklaring</summary><div class="legend" style="margin-top:8px"><span><i style="background:var(--free)"></i>Ledig plats</span><span><i style="background:var(--few)"></i>För få platser</span><span><i style="background:var(--full)"></i>Fullt</span><span><i style="background:var(--flag)"></i>Öppen grupp</span><span><i style="background:var(--green)"></i>Din tid</span><span><i style="background:var(--dusk)"></i>Mörkt före sista hålet</span><span><i style="border:1.5px solid var(--ink)"></i>Bevakad</span></div></details>';
 
   var y = window.scrollY, stripX = $('strip') ? $('strip').scrollLeft : null;
   v.innerHTML = html;
   if (stripX != null) $('strip').scrollLeft = stripX;
   else { var cur = v.querySelector('.day[aria-pressed="true"]'); if (cur && cur.scrollIntoView) try { cur.scrollIntoView({ inline: 'center', block: 'nearest' }); window.scrollTo(0, y); } catch (e) {} }
+  if (S.scrollToSel && S.sheet) {
+    S.scrollToSel = false;
+    var sel = v.querySelector('.sl-row[aria-pressed="true"]');
+    if (sel) try { var r = sel.getBoundingClientRect(); window.scrollTo(0, Math.max(0, window.scrollY + r.top - window.innerHeight / 2.6)); } catch (e) {}
+  }
   renderAction();
 }
+function notBookableHtml(cl) {
+  var fav = (S.settings.favorite_clubs || []).indexOf(cl.id) >= 0;
+  var near = nearestBookable(cl, 3);
+  var html = '<div class="card notbook"><span class="lbl">Inte ansluten till TeeTime än</span>' +
+    '<p class="big">' + esc(cl.name) + ' bokas i Min Golf så länge</p>' +
+    '<p class="note">Klubben finns med här så att du hittar den. När klubben ansluter sig, eller när TeeTime får koppla mot golfförbundets system, kan du boka direkt här.</p>' +
+    '<div class="row"><a class="btn primary" href="https://mingolf.golf.se/" target="_blank" rel="noopener">Öppna Min Golf</a>' +
+    (cl.website ? '<a class="btn" href="' + esc(safeUrl(cl.website)) + '" target="_blank" rel="noopener">Klubbens webbplats</a>' : '') +
+    '<button type="button" class="btn" data-act="fav-club" data-id="' + cl.id + '" aria-pressed="' + fav + '">' + (fav ? '★ Favorit' : '☆ Spara som favorit') + '</button></div>' +
+    '<button type="button" class="btn link" data-act="tip-club" data-id="' + cl.id + '" style="align-self:flex-start">Tipsa klubben om TeeTime</button></div>';
+  if (near.length) html += '<div class="card"><h3>Boka i appen nära ' + esc(cl.name) + '</h3><div>' + near.map(function (x) { return clubItemHtml(x.c, x.km); }).join('') + '</div></div>';
+  return html;
+}
+function safeUrl(u) { u = String(u || '').trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u; return u; }
 function inFilter(m) {
   if (S.filter === 'am') return m < 600; if (S.filter === 'mid') return m >= 600 && m < 780; if (S.filter === 'pm') return m >= 780; return true;
 }
@@ -569,7 +676,7 @@ function myWatchCovers(t) {
     return Math.abs(toMin(w.tee_time) - toMin(t)) <= w.window_min;
   });
 }
-function gridHtml() {
+function listHtml() {
   var html = '', shown = 0;
   sheetTimes().forEach(function (t) {
     var m = toMin(t); if (!inFilter(m)) return;
@@ -578,48 +685,58 @@ function gridHtml() {
     var cls = past ? 'past' : sl.blocked ? 'blocked' : sl.free >= S.players ? 'ok' : sl.free > 0 ? 'few' : 'full';
     if (S.onlyFree && cls !== 'ok' && t !== S.time) return;
     shown++;
-    var bars = ''; for (var i = 0; i < (sl.cap || 4); i++) bars += '<b' + (i < sl.free ? ' class="f"' : '') + '></b>';
-    var mk = '';
-    if (sl.mine) mk += '<i class="mine"></i>';
-    if (!past && tooDark(S.date, t, S.course)) mk += '<i class="dusk"></i>';
-    if (!past && sl.groups.length) mk += '<i class="open"></i>';
-    if (myWatchCovers(t)) mk += '<i class="watch"></i>';
-    var label = t + ', ' + (past ? 'passerad' : sl.blocked ? 'stängd: ' + sl.blocked : sl.free === 0 ? 'fullt' : sl.free + ' lediga platser') + (sl.mine ? ', din bokning' : '');
-    html += '<button type="button" class="slot ' + cls + '" data-t="' + t + '" aria-pressed="' + (t === S.time) + '" aria-label="' + esc(label) + '"' + (past ? ' disabled' : '') + '><span class="mk">' + mk + '</span><span class="t">' + t + '</span><span class="bars">' + bars + '</span></button>';
+    var cap = sl.cap || 4, balls = '';
+    for (var i = 0; i < cap; i++) balls += '<i' + (i < sl.free ? '' : ' class="f"') + '></i>';
+    var tags = '';
+    if (sl.mine) tags += '<i class="mine" title="Din tid"></i>';
+    if (!past && sl.groups.length) tags += '<i class="open" title="Öppen grupp"></i>';
+    if (!past && tooDark(S.date, t, S.course)) tags += '<i class="dusk" title="Mörkt före sista hålet"></i>';
+    if (myWatchCovers(t)) tags += '<i class="watch" title="Bevakad"></i>';
+    var status = past ? 'Passerad' : sl.blocked ? 'Stängt' : sl.free === 0 ? 'Fullt' : sl.free === cap ? 'Ledig boll' : sl.free + (sl.free === 1 ? ' plats ledig' : ' platser lediga');
+    var sub;
+    if (sl.blocked) sub = sl.blocked;
+    else if (sl.mine) sub = 'Din bokning';
+    else if (sl.groups.length) sub = 'Öppen grupp · ' + sl.groups[0].name;
+    else if (S.course === 'any') { var c = candidates(t, 1); sub = c.length ? courseName(c[0].course_id) + (c.length > 1 ? ' + ' + (c.length - 1) + ' till' : '') : (sl.free === 0 ? 'Bevaka för att få besked' : ''); }
+    else sub = sl.free === 0 && !past ? 'Bevaka för att få besked' : '';
+    var price = !past && !sl.blocked && sl.free > 0 ? kr(sl.price) : '';
+    var label = t + ', ' + status + (sub ? ', ' + sub : '') + (price ? ', ' + price : '');
+    html += '<button type="button" class="sl-row ' + cls + '" data-t="' + t + '" aria-pressed="' + (t === S.time) + '" aria-label="' + esc(label) + '"' + (past ? ' disabled' : '') + '>' +
+      '<span class="t">' + t + '</span><span class="balls" aria-hidden="true">' + balls + '</span>' +
+      '<span class="st"><b>' + esc(status) + '<span class="tags" aria-hidden="true">' + tags + '</span></b><span>' + esc(sub) + '</span></span>' +
+      '<span class="pr">' + price + '</span></button>';
   });
-  return shown ? html : '<p class="note" style="grid-column:1/-1">Inga tider i det här intervallet. Prova en annan del av dagen eller ett annat datum.</p>';
+  return shown ? html : '<p class="note" style="padding:16px">Inga tider i det här intervallet. Prova en annan del av dagen eller ett annat datum.</p>';
 }
 function slotInfoHtml() {
   if (!S.sheet) return '';
   var t = S.time, sl = slotFor(t), out = [];
   if (!sl) return '';
   var cl = club(S.club) || {};
-  if (sl.blocked) out.push('<div class="info warn"><b>Stängt:</b> ' + esc(sl.blocked) + '</div>');
-  if (!isPast(S.date, t) && tooDark(S.date, t, S.course)) {
+  if (!isPast(S.date, t) && !sl.blocked && tooDark(S.date, t, S.course)) {
     var s = sunTimes(S.date, cl.lat, cl.lng), c = S.course === 'any' ? null : course(S.course), mins = c ? c.round_minutes : 255;
     out.push('<div class="info dusk">Solen går ned ' + s.set + '. En runda' + (c ? ' på ' + c.holes + ' hål' : '') + ' tar ungefär ' + Math.floor(mins / 60) + ' tim ' + (mins % 60) + ' min, så de sista hålen kan bli mörka.</div>');
   }
   sl.groups.forEach(function (g) {
     out.push('<div class="info flag"><b>Öppen grupp' + (S.course === 'any' ? ' på ' + esc(courseName(g.course_id)) : '') + ':</b> ' + esc(g.name) + (g.players > 1 ? ' + ' + (g.players - 1) : '') + ' söker fler. ' + g.free + (g.free === 1 ? ' plats' : ' platser') + ' kvar.</div>');
   });
-  if (sl.mine) out.push('<div class="info">Du har redan en bokning ' + t + '. Den finns under Mina tider.</div>');
-  if (S.course !== 'any') { var cc = course(S.course); if (cc && cc.twilight_from && t >= hm(cc.twilight_from) && cc.twilight_pct) out.push('<div class="info">Skymningspris från ' + hm(cc.twilight_from) + ': ' + cc.twilight_pct + ' % rabatt.</div>'); }
   return out.join('');
 }
 function renderAction() {
   var bar = $('actionbar'), btn = $('mainBtn'), alt = $('altBtn');
-  if (S.tab !== 'boka' || !S.clubs.length) { bar.hidden = true; return; }
+  $('pOut').textContent = S.players; $('pMinus').disabled = S.players <= 1; $('pPlus').disabled = S.players >= 4;
+  if (S.tab !== 'boka' || !S.clubs.length || !club(S.club) || !clubBookable(S.club)) { bar.hidden = true; return; }
   bar.hidden = false;
   var sl = S.sheet ? slotFor(S.time) : null, past = isPast(S.date, S.time);
   var cands = sl ? candidates(S.time, S.players) : [];
   var canBook = !past && cands.length > 0;
-  $('sumMain').textContent = S.time + ' · ' + courseName(S.course);
-  var sub = fmtDate(S.date) + ' · ' + spelare(S.players);
+  $('sumMain').textContent = S.time + ' · ' + (canBook && S.course === 'any' ? courseName(cands[0].course_id) : courseName(S.course));
+  var sub = fmtDate(S.date);
   if (!sl) sub += S.sheetLoading ? ' · laddar…' : '';
   else if (past) sub += ' · har passerat';
   else if (sl.blocked) sub += ' · stängt';
-  else if (!canBook) sub += sl.free === 0 ? ' · fullbokat' : ' · bara ' + sl.free + (sl.free === 1 ? ' plats' : ' platser');
-  else sub += ' · ' + kr(cands[0].price * S.players);
+  else if (!canBook) sub += sl.free === 0 ? ' · fullt, bevaka tiden' : ' · bara ' + sl.free + (sl.free === 1 ? ' plats' : ' platser');
+  else sub += ' · ' + kr(cands[0].price * S.players) + ' för ' + spelare(S.players);
   $('sumSub').textContent = sub;
   var watched = myWatchCovers(S.time);
   alt.hidden = past || !sl || !!sl.blocked;
@@ -628,7 +745,64 @@ function renderAction() {
   if (!sl || past || sl.blocked) { btn.textContent = past ? 'Passerad' : 'Boka'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
   else if (canBook) { btn.textContent = 'Boka'; btn.className = 'btn primary'; btn.disabled = !S.online; btn.dataset.mode = 'book'; }
   else if (watched) { btn.textContent = 'Bevakas'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
-  else { btn.textContent = 'Bevaka'; btn.className = 'btn primary'; btn.disabled = !S.online; btn.dataset.mode = 'watch'; }
+  else { btn.textContent = 'Bevaka'; btn.className = 'btn primary'; btn.style.background = 'var(--flag)'; btn.style.borderColor = 'var(--flag)'; btn.style.color = 'var(--on-flag)'; btn.disabled = !S.online; btn.dataset.mode = 'watch'; return; }
+  btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
+}
+
+/* ================= Klubbval ================= */
+function kmBetween(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return null;
+  var r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 6371 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+function fmtKm(k) { return k == null ? '' : k < 10 ? (Math.round(k * 10) / 10).toLocaleString('sv-SE') + ' km' : Math.round(k) + ' km'; }
+function nearestBookable(from, n) {
+  return S.clubs.filter(function (c) { return c.id !== from.id && clubBookable(c.id); })
+    .map(function (c) { return { c: c, km: kmBetween(from, c) }; })
+    .sort(function (a, b) { return (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km); }).slice(0, n);
+}
+function clubItemHtml(c, km) {
+  var on = clubBookable(c.id), fav = (S.settings.favorite_clubs || []).indexOf(c.id) >= 0;
+  var ini = c.name.replace(/\b(golfklubb|golf club|golf|gk|g&cc|gcc|country club)\b/gi, '').trim().slice(0, 2).toUpperCase() || c.name.slice(0, 2).toUpperCase();
+  return '<div class="row cirow" style="flex-wrap:nowrap;gap:0"><button type="button" class="ci' + (on ? ' on' : '') + '" data-act="set-club" data-id="' + c.id + '">' +
+    '<span class="tile" aria-hidden="true">' + esc(ini) + '</span><span class="grow"><b>' + esc(c.name) + '</b><span>' + esc(clubWhere(c) || 'Sverige') + '</span><em>' + (on ? 'Boka i TeeTime' : 'Bokas i Min Golf') + (c.id === S.profile.home_club ? ' · hemmaklubb' : '') + '</em></span>' +
+    (km != null ? '<span class="km">' + fmtKm(km) + '</span>' : '') + '</button>' +
+    '<button type="button" class="star" data-act="fav-club" data-id="' + c.id + '" aria-pressed="' + fav + '" aria-label="' + (fav ? 'Ta bort ' : 'Spara ') + esc(c.name) + (fav ? ' från favoriter' : ' som favorit') + '">' +
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="' + (fav ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></div>';
+}
+function openClubPicker() {
+  var counties = S.clubs.map(function (c) { return c.county; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; }).sort(function (a, b) { return a.localeCompare(b, 'sv'); });
+  openSheet('<div class="row between"><h2 id="sheetH">Hitta klubb</h2><button type="button" class="btn link" data-act="close">Stäng</button></div>' +
+    '<input type="search" id="clubSearch" placeholder="Sök klubb, ort eller län" autocomplete="off" aria-label="Sök klubb" value="' + esc(S.clubQ || '') + '">' +
+    '<div class="chips" id="clubChips">' +
+    '<button type="button" class="fchip" data-act="club-near" aria-pressed="' + !!S.geo + '">Nära mig</button>' +
+    '<button type="button" class="fchip" data-act="club-filter" data-v="fav" aria-pressed="' + (S.clubFilter === 'fav') + '">Favoriter</button>' +
+    '<button type="button" class="fchip" data-act="club-filter" data-v="book" aria-pressed="' + (S.clubFilter === 'book') + '">Boka i appen</button>' +
+    '<select id="clubCounty" aria-label="Län" style="width:auto;min-height:34px;padding:4px 10px;border-radius:999px;font-size:.82rem;font-weight:600"><option value="">Alla län</option>' +
+    counties.map(function (c) { return '<option' + (S.county === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="clublist" id="clubList">' + clubListHtml() + '</div>' +
+    '<p class="note" style="font-size:.72rem">Klubbdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMaps bidragsgivare</a></p>');
+}
+function clubListHtml() {
+  var q = (S.clubQ || '').trim().toLowerCase(), favs = S.settings.favorite_clubs || [];
+  var ref = S.geo || club(S.profile.home_club) || null;
+  var list = S.clubs.filter(function (c) {
+    if (q && (c.name + ' ' + (c.city || '') + ' ' + (c.county || '') + ' ' + (c.municipality || '')).toLowerCase().indexOf(q) < 0) return false;
+    if (S.clubFilter === 'fav' && favs.indexOf(c.id) < 0) return false;
+    if (S.clubFilter === 'book' && !clubBookable(c.id)) return false;
+    if (S.county && c.county !== S.county) return false;
+    return true;
+  }).map(function (c) { return { c: c, km: ref ? kmBetween(ref, c) : null }; });
+  list.sort(function (a, b) {
+    var fa = favs.indexOf(a.c.id) >= 0, fb = favs.indexOf(b.c.id) >= 0;
+    if (S.geo) return (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km);
+    return (fb - fa) || (clubBookable(b.c.id) - clubBookable(a.c.id)) || a.c.name.localeCompare(b.c.name, 'sv');
+  });
+  var total = list.length, shown = list.slice(0, 80);
+  if (!total) return '<p class="note" style="padding:12px 0">Ingen klubb matchar. Prova ett annat namn eller ta bort filtret.</p>';
+  return shown.map(function (x) { return clubItemHtml(x.c, x.km); }).join('') +
+    (total > shown.length ? '<p class="note" style="padding:10px 0">Visar ' + shown.length + ' av ' + total + ' klubbar. Sök för att hitta fler.</p>' : '');
 }
 
 /* ================= Rendering: Mina tider ================= */
@@ -661,14 +835,31 @@ function roundCard(r) {
     '<div class="meta">' + esc(who.slice(0, r.players).join(', ')) + ' · ' + kr(r.price_each * r.players) + (left > 0 && left < 1440 ? ' · om ' + (left < 60 ? Math.round(left) + ' min' : Math.floor(left / 60) + ' tim') : '') + '</div></div>' +
     '<div class="btns">' + btns + '</div></div>';
 }
+function ticketHtml(r) {
+  var left = minsUntil(r.play_date, r.tee_time), locked = left < (r.cancel_cutoff_min || 120);
+  var when = left < 60 ? 'om ' + Math.max(0, Math.round(left)) + ' min' : left < 1440 ? 'om ' + Math.round(left / 60) + ' tim' : 'om ' + Math.round(left / 1440) + (Math.round(left / 1440) === 1 ? ' dag' : ' dagar');
+  var who = r.is_owner ? ['Du'].concat(r.guests || []) : [r.owner_name].concat(r.guests || []);
+  while (who.length < r.players) who.push('Gäst');
+  var cl = club(r.club_id) || {}, s = sunTimes(r.play_date, cl.lat, cl.lng);
+  var acts = '<a href="' + esc(gcalLink(r)) + '" target="_blank" rel="noopener">Kalender</a><button type="button" data-act="copy-round" data-id="' + r.id + '">Dela</button>';
+  if (r.is_owner && !locked) acts += '<button type="button" data-act="edit" data-id="' + r.id + '">Ändra</button><button type="button" data-act="cancel" data-id="' + r.id + '">Avboka</button>';
+  if (S.confirmCancel === r.id) acts = '<button type="button" data-act="cancel-yes" data-id="' + r.id + '" style="background:var(--full);color:#fff">Ja, avboka</button><button type="button" data-act="cancel-no">Behåll tiden</button>';
+  return '<div class="ticket"><div class="top"><div class="eyebrow"><span>Nästa runda · ' + esc(when) + '</span><span class="code">' + esc(r.code) + '</span></div>' +
+    '<div class="big">' + hm(r.tee_time) + '</div><div style="font-weight:600;font-size:1.05rem">' + esc(longDate(r.play_date).replace(/^./, function (c) { return c.toUpperCase(); })) + '</div>' +
+    '<div style="opacity:.85">' + esc(r.course_name) + ', ' + esc(r.club_name) + '</div></div><div class="perf"></div>' +
+    '<div class="bot">' + esc(who.slice(0, r.players).join(', ')) + ' · ' + kr(r.price_each * r.players) + (s.set ? ' · sol ned ' + s.set : '') + (r.open_group ? ' · öppen grupp' : '') + (!r.is_owner ? ' · bokad av ' + esc(r.owner_name) : '') + '</div>' +
+    (r.is_owner && locked ? '<div class="bot" style="padding-top:0;opacity:.8">Avbokning är stängd. Kontakta klubben vid förhinder.</div>' : '') +
+    '<div class="acts">' + acts + '</div></div>';
+}
 function renderMine() {
-  var up = upcoming(), hist = pastRounds(), html = '';
-  html += up.length ? up.map(roundCard).join('') : '<div class="card empty"><strong>Inga bokade tider</strong>Välj klubb, datum och tid under Boka.<br><br><button type="button" class="btn primary" data-act="goto" data-tab="boka">Boka en tid</button></div>';
+  var up = upcoming(), hist = pastRounds(), html = '<h1>Mina tider</h1>';
+  if (up.length) { html += ticketHtml(up[0]); if (up.length > 1) html += '<h3>Kommande</h3>'; up = up.slice(1); }
+  html += up.length ? up.map(roundCard).join('') : (html.indexOf('ticket') >= 0 ? '' : '<div class="card empty"><strong>Inga bokade tider</strong>Välj klubb, datum och tid under Boka.<br><br><button type="button" class="btn primary" data-act="goto" data-tab="boka">Boka en tid</button></div>');
   if (hist.length) html += '<div class="card"><h2>Spelade rundor</h2><div class="hist">' + hist.slice(0, 15).map(function (r) {
     return '<div><span>' + esc(fmtDate(r.play_date, { day: 'numeric', month: 'short', year: 'numeric' })) + '</span><span class="mono">' + hm(r.tee_time) + '</span><span>' + esc(r.course_name) + ', ' + esc(r.club_name) + '</span></div>';
   }).join('') + '</div></div>';
   $('view-mina').innerHTML = html;
-  $('cntMine').textContent = up.length; $('cntMine').hidden = !up.length;
+  var nUp = upcoming().length; $('cntMine').textContent = nUp; $('cntMine').hidden = !nUp;
 }
 
 /* ================= Rendering: Bevakning ================= */
@@ -680,10 +871,17 @@ function windowLabel(w) {
 function renderWatch() {
   var list = S.watches.filter(function (w) { return w.play_date >= today(); }).sort(function (a, b) { return (a.play_date + a.tee_time).localeCompare(b.play_date + b.tee_time); });
   var ready = list.filter(function (w) { return w.ready_at; }).length;
-  var html = '<div class="card"><h2>Bevakade tider</h2><p class="note">När en bevakad tid blir ledig får du en notis i telefonen' + (S.settings.notify_email ? ' och ett mejl' : '') + ', även när appen är stängd. Den som bokar först får tiden.</p>' +
+  var html = '<h1>Bevakning</h1><div class="card"><p class="note">När en bevakad tid blir ledig får du en notis i telefonen' + (S.settings.notify_email ? ' och ett mejl' : '') + ', även när appen är stängd. Den som bokar först får tiden.</p>' +
     (pushState() !== 'on' ? '<button type="button" class="btn small primary" data-act="enable-push" style="align-self:flex-start">Slå på notiser i telefonen</button>' : '') + '</div>';
+  list.filter(function (w) { return w.ready_at && w.ready_slot; }).forEach(function (w) {
+    var rs = w.ready_slot, cl0 = club(w.club_id) || { name: '' };
+    html += '<div class="readycard"><div class="eyebrow">Ledig nu · ' + esc(ago(w.ready_at)) + '</div><div class="row" style="align-items:baseline;gap:10px"><span class="big">' + esc(rs.tee_time) + '</span><b>' + esc(fmtDate(w.play_date)) + '</b></div>' +
+      '<div>' + esc(rs.course_name) + ', ' + esc(cl0.name) + ' · ' + spelare(w.players) + '</div><button type="button" class="btn block" data-act="book-watch" data-id="' + w.id + '">Boka ' + esc(rs.tee_time) + ' nu</button></div>';
+  });
   if (!list.length) html += '<div class="card empty"><strong>Inga bevakningar</strong>Är en tid full? Välj den under Boka och tryck Bevaka. Du kan bevaka en exakt tid eller ett tidsfönster.</div>';
-  html += list.map(function (w) {
+  var waiting = list.filter(function (w) { return !(w.ready_at && w.ready_slot); });
+  if (waiting.length && waiting.length < list.length) html += '<h3>Bevakar</h3>';
+  html += waiting.map(function (w) {
     var cl = club(w.club_id) || { name: '' }, rs = w.ready_slot;
     return '<div class="card item' + (w.ready_at ? ' ready' : '') + '"><div class="when"><div class="d">' + (+w.play_date.slice(8)) + '</div><div class="m">' + esc(fmtDate(w.play_date, { month: 'short', weekday: 'short' })) + '</div></div>' +
       '<div class="what"><div class="time">' + esc(windowLabel(w)) + ' <span class="chip' + (w.ready_at ? ' ready' : '') + '">' + (w.ready_at && rs ? 'Ledig ' + esc(rs.tee_time) : 'Bevakar') + '</span></div>' +
@@ -705,7 +903,7 @@ function renderFriends() {
   var out = S.friends.filter(function (f) { return f.status === 'pending' && !f.incoming; });
   var props = S.proposals.filter(function (p) { return p.status === 'open' || minsUntil(p.play_date, p.tee_time) > -60; });
   var toAnswer = props.filter(function (p) { return p.created_by !== S.uid && p.status === 'open' && p.my_response === 'pending'; });
-  var html = '';
+  var html = '<h1>Spela ihop</h1>';
 
   html += '<div class="card"><div class="row between"><h2>Golfförslag</h2><button type="button" class="btn small primary" data-act="goto" data-tab="boka">Nytt förslag</button></div>';
   if (!props.length) html += '<p class="note">Välj en tid under Boka och tryck Föreslå för att fråga upp till tre vänner. När de svarat bokar du med ett tryck.</p>';
@@ -758,10 +956,13 @@ function renderMer() {
   var html = '<div class="card"><div class="row"><span class="avatar" style="width:48px;height:48px;font-size:1.1rem">' + esc(initials(p.display_name)) + '</span><span class="grow"><b style="font-size:1.1rem">' + esc(p.display_name || 'Golfare') + '</b><span class="note" style="display:block">' + (p.hcp != null ? 'hcp ' + p.hcp + ' · ' : '') + esc(S.email) + '</span></span></div>' +
     '<div class="stats"><div class="stat"><div class="v">' + hist.length + '</div><div class="k">rundor ' + year + '</div></div><div class="stat"><div class="v">' + esc(fav || '–') + '</div><div class="k">mest spelad</div></div><div class="stat"><div class="v">' + S.friends.filter(function (f) { return f.status === 'accepted'; }).length + '</div><div class="k">golfvänner</div></div></div></div>';
 
+  html += '<div class="darkcard"><div class="row between"><span class="row" style="gap:10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--flag)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h3"/></svg><b style="font-family:var(--font-display);font-size:1.15rem">Golf-ID</b></span><span class="pill">Kommer</span></div>' +
+    '<p class="note">Snart loggar du in med ditt Golf-ID, så kan du boka tider på alla svenska klubbar, se ditt riktiga handicap och synas med Golf-ID på startlistan. Vi väntar på avtal med Svenska Golfförbundet.</p>' +
+    (st.golf_id ? '<p class="note">Sparat Golf-ID: <b class="mono">' + esc(st.golf_id) + '</b></p>' : '<p class="note">Fyll i ditt Golf-ID nedan, så är du redo när kopplingen öppnar.</p>') + '</div>';
   html += '<div class="card"><h2>Golfprofil</h2><div class="form2">' +
     '<div class="field wide"><label for="prName">Namn</label><input type="text" id="prName" maxlength="60" value="' + esc(p.display_name || '') + '"></div>' +
     '<div class="field"><label for="prHcp">Handicap</label><input type="text" inputmode="decimal" id="prHcp" value="' + (p.hcp != null ? esc(String(p.hcp).replace('.', ',')) : '') + '" placeholder="t.ex. 18,4"></div>' +
-    '<div class="field"><label for="prGolfId">Golf-ID</label><input type="text" id="prGolfId" maxlength="20" value="' + esc(st.golf_id || '') + '" placeholder="ÅÅMMDD-123"></div>' +
+    '<div class="field"><label for="prGolfId">Golf-ID</label><input type="text" id="prGolfId" maxlength="20" autocomplete="off" value="' + esc(st.golf_id || '') + '" placeholder="ÅÅMMDD-123"></div>' +
     '<div class="field"><label for="prHome">Hemmaklubb</label><select id="prHome"><option value="">Ingen</option>' + S.clubs.map(function (c) { return '<option value="' + c.id + '"' + (p.home_club === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label for="prPlayers">Brukar vara</label><select id="prPlayers">' + [1, 2, 3, 4].map(function (n) { return '<option value="' + n + '"' + ((st.default_players || 2) === n ? ' selected' : '') + '>' + spelare(n) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field wide"><label for="prFav">Vanliga medspelare utan konto (skilj med komma)</label><input type="text" id="prFav" maxlength="300" value="' + esc((st.favorite_friends || []).join(', ')) + '" placeholder="Pappa, Kalle"></div>' +
@@ -930,15 +1131,6 @@ function openEdit(r) {
     '<label class="toggle" for="eOpen"><span>Öppen grupp</span><input type="checkbox" id="eOpen"' + (r.open_group ? ' checked' : '') + '></label>' +
     '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="save-edit" data-id="' + r.id + '">Spara</button></div>');
 }
-function openClubPicker() {
-  openSheet('<h2 id="sheetH">Välj klubb</h2><input type="search" id="clubSearch" placeholder="Sök klubb eller ort" autocomplete="off"><div class="clublist" id="clubList">' + clubListHtml('') + '</div><button type="button" class="btn" data-act="close">Stäng</button>');
-}
-function clubListHtml(q) {
-  q = q.trim().toLowerCase();
-  var list = S.clubs.filter(function (c) { return !q || (c.name + ' ' + c.city + ' ' + c.region).toLowerCase().indexOf(q) >= 0; });
-  list.sort(function (a, b) { return (b.id === S.profile.home_club) - (a.id === S.profile.home_club) || a.name.localeCompare(b.name, 'sv'); });
-  return list.length ? list.map(function (c) { return '<button type="button" data-act="set-club" data-id="' + c.id + '"><b>' + esc(c.name) + (c.id === S.profile.home_club ? ' · hemmaklubb' : '') + '</b><span class="note">' + esc([c.city, c.region].filter(Boolean).join(', ')) + ' · ' + clubCourses(c.id).length + ' banor</span></button>'; }).join('') : '<p class="note">Ingen klubb matchar.</p>';
-}
 function openNotifs() {
   var html = '<div class="row between"><h2 id="sheetH">Notiser</h2>' + (S.notifs.length ? '<button type="button" class="btn small" data-act="notif-clear">Rensa</button>' : '') + '</div>';
   html += S.notifs.length ? '<div>' + S.notifs.map(function (n) {
@@ -997,7 +1189,13 @@ function renderAll() {
 async function refreshAll() {
   try {
     await Promise.all([loadStatic(), loadMe()]);
-    if (!S.club || !club(S.club)) S.club = S.profile.home_club && club(S.profile.home_club) ? S.profile.home_club : (S.clubs[0] || {}).id || null;
+    if (!S.club || !club(S.club)) {
+      var favs0 = (S.settings.favorite_clubs || []).filter(function (id) { return club(id); });
+      var firstBook = S.clubs.filter(function (c) { return clubBookable(c.id); })[0];
+      var favBook = favs0.filter(function (id) { return clubBookable(id); })[0];
+      S.club = S.profile.home_club && club(S.profile.home_club) ? S.profile.home_club : favBook || (firstBook || {}).id || favs0[0] || (S.clubs[0] || {}).id || null;
+      S.scrollToSel = true;
+    }
     await Promise.all([loadRounds(), loadWatches(), loadFriends(), loadProposals(), loadNotifs()]);
     setOnline(true); saveCache(); renderAll(); loadSheet(true); subscribeSheet();
   } catch (e) { if (isNetErr(e && e.message)) setOnline(false); else toast(errMsg(e)); renderAll(); }
@@ -1110,9 +1308,42 @@ async function onAction(e) {
       case 'goto': closeSheet(); setTab(el.dataset.tab); break;
       case 'done': closeSheet(); setTab('mina'); break;
       case 'pick-club': openClubPicker(); break;
-      case 'set-club': S.club = id; S.course = 'any'; S.sheet = null; closeSheet(); renderBoka(); subscribeSheet(); loadSheet(true); saveCache(); break;
-      case 'pminus': S.players = Math.max(1, S.players - 1); renderBoka(); break;
-      case 'pplus': S.players = Math.min(4, S.players + 1); renderBoka(); break;
+      case 'set-club': S.club = id; S.course = 'any'; S.sheet = null; S.scrollToSel = true; closeSheet(); setTab('boka'); renderBoka(); subscribeSheet(); if (clubBookable(id)) loadSheet(true); saveCache(); break;
+      case 'fav-club': {
+        if (!needOnline()) return;
+        var favs = (S.settings.favorite_clubs || []).slice(), ix = favs.indexOf(id);
+        if (ix >= 0) favs.splice(ix, 1); else favs.unshift(id);
+        favs = favs.slice(0, 30);
+        var fr0 = await sb.from('settings').update({ favorite_clubs: favs }).eq('user_id', S.uid);
+        if (fr0.error) { toast(errMsg(fr0.error)); return; }
+        S.settings.favorite_clubs = favs; saveCache();
+        toast(ix >= 0 ? 'Borttagen från favoriter' : 'Sparad som favorit');
+        if ($('clubList')) $('clubList').innerHTML = clubListHtml();
+        renderBoka();
+        break;
+      }
+      case 'tip-club': {
+        var tc = club(id); if (!tc) return;
+        copyText('Hej ' + tc.name + '! Jag använder TeeTime för att boka golf, bevaka fulla tider och bjuda in vänner. Det vore toppen om ni anslöt er, så att jag kan boka era tider där. ' + APP_URL, 'Texten är kopierad. Skicka den till klubben.');
+        break;
+      }
+      case 'club-near': {
+        if (S.geo) { S.geo = null; $('clubList').innerHTML = clubListHtml(); el.setAttribute('aria-pressed', 'false'); break; }
+        if (!navigator.geolocation) { toast('Platstjänster stöds inte i den här webbläsaren.'); return; }
+        el.textContent = 'Hämtar plats…';
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          S.geo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          el.textContent = 'Nära mig'; el.setAttribute('aria-pressed', 'true');
+          if ($('clubList')) $('clubList').innerHTML = clubListHtml();
+        }, function () { el.textContent = 'Nära mig'; toast('Tillåt platsåtkomst för att se klubbar nära dig.'); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+        break;
+      }
+      case 'club-filter': {
+        S.clubFilter = S.clubFilter === el.dataset.v ? null : el.dataset.v;
+        Array.prototype.forEach.call(document.querySelectorAll('[data-act="club-filter"]'), function (x) { x.setAttribute('aria-pressed', x.dataset.v === S.clubFilter); });
+        $('clubList').innerHTML = clubListHtml();
+        break;
+      }
       case 'onlyfree': S.onlyFree = !S.onlyFree; renderBoka(); break;
 
       case 'confirm-book': {
@@ -1229,8 +1460,12 @@ async function onAction(e) {
         var hcpRaw = $('prHcp').value.trim().replace(',', '.'), hcp = hcpRaw === '' ? null : Math.round(parseFloat(hcpRaw) * 10) / 10;
         if (hcp !== null && (isNaN(hcp) || hcp < -10 || hcp > 54)) { toast('Handicap ska vara ett tal mellan -10 och 54.'); return; }
         var name = $('prName').value.trim(); if (!name) { toast('Skriv ditt namn.'); return; }
+        var gid = $('prGolfId').value.replace(/\s/g, '');
+        if (/^\d{9}$/.test(gid)) gid = gid.slice(0, 6) + '-' + gid.slice(6);
+        if (gid && !/^\d{6}-\d{3}$/.test(gid)) { toast('Golf-ID skrivs som ÅÅMMDD-123.'); return; }
+        $('prGolfId').value = gid;
         var a1 = await sb.from('profiles').update({ display_name: name, hcp: hcp, home_club: $('prHome').value || null }).eq('id', S.uid);
-        var a2 = await sb.from('settings').update({ golf_id: $('prGolfId').value.trim() || null, default_players: +$('prPlayers').value, favorite_friends: $('prFav').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 20), updated_at: new Date().toISOString() }).eq('user_id', S.uid);
+        var a2 = await sb.from('settings').update({ golf_id: gid || null, default_players: +$('prPlayers').value, favorite_friends: $('prFav').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 20), updated_at: new Date().toISOString() }).eq('user_id', S.uid);
         if (a1.error || a2.error) { toast(errMsg(a1.error || a2.error)); return; }
         await loadMe(); saveCache(); renderMer(); toast('Profilen är sparad');
         break;
@@ -1377,6 +1612,8 @@ function boot() {
   $('forgotBtn').addEventListener('click', onForgot);
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
   $('bellBtn').addEventListener('click', openNotifs);
+  $('pMinus').addEventListener('click', function () { S.players = Math.max(1, S.players - 1); renderBoka(); });
+  $('pPlus').addEventListener('click', function () { S.players = Math.min(4, S.players + 1); renderBoka(); });
   $('bannerGo').addEventListener('click', function () { setTab('bevaka'); });
   $('mainBtn').addEventListener('click', function () {
     var m = this.dataset.mode;
@@ -1390,17 +1627,18 @@ function boot() {
   document.addEventListener('click', function (e) {
     var v = $('view-boka');
     if (v.contains(e.target)) {
-      var d = e.target.closest('[data-d]'); if (d) { S.date = d.dataset.d; loadSheet(); renderBoka(); return; }
-      var c = e.target.closest('[data-c]'); if (c && c.classList.contains('course')) { S.course = c.dataset.c; renderBoka(); return; }
+      var d = e.target.closest('[data-d]'); if (d) { S.date = d.dataset.d; S.scrollToSel = true; loadSheet(); renderBoka(); return; }
+      var c = e.target.closest('[data-c]'); if (c && c.classList.contains('fchip')) { S.course = c.dataset.c; renderBoka(); return; }
       var f = e.target.closest('[data-f]'); if (f) { S.filter = f.dataset.f; renderBoka(); return; }
-      var s = e.target.closest('.slot'); if (s && !s.disabled) { S.time = s.dataset.t; renderBoka(); return; }
+      var s = e.target.closest('.sl-row'); if (s && !s.disabled) { S.time = s.dataset.t; renderBoka(); return; }
     }
     onAction(e);
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.id === 'fDate' && t.value) { S.date = t.value < today() ? today() : t.value; loadSheet(); renderBoka(); }
-    else if (t.id === 'fTime' && t.value) { var target = toMin(t.value), best = S.time; sheetTimes().forEach(function (x) { if (Math.abs(toMin(x) - target) < Math.abs(toMin(best) - target)) best = x; }); S.time = best; renderBoka(); }
+    if (t.id === 'fDate' && t.value) { S.date = t.value < today() ? today() : t.value; S.scrollToSel = true; loadSheet(); renderBoka(); }
+    else if (t.id === 'fTime' && t.value) { var target = toMin(t.value), best = S.time; sheetTimes().forEach(function (x) { if (Math.abs(toMin(x) - target) < Math.abs(toMin(best) - target)) best = x; }); S.time = best; S.scrollToSel = true; renderBoka(); }
+    else if (t.id === 'clubCounty') { S.county = t.value; $('clubList').innerHTML = clubListHtml(); }
     else if (t.id === 'ePlayers') { var n = +t.value; Array.prototype.forEach.call(document.querySelectorAll('[data-gi]'), function (x) { x.hidden = +x.dataset.gi > n; }); }
     else if (t.id === 'stEmail' || t.id === 'stRemind') {
       var patch = {}; patch[t.id === 'stEmail' ? 'notify_email' : 'remind_day_before'] = t.checked;
@@ -1413,7 +1651,7 @@ function boot() {
   var searchTimer = null;
   document.addEventListener('input', function (e) {
     var t = e.target;
-    if (t.id === 'clubSearch') $('clubList').innerHTML = clubListHtml(t.value);
+    if (t.id === 'clubSearch') { S.clubQ = t.value; $('clubList').innerHTML = clubListHtml(); }
     if (t.id === 'pSearch') {
       clearTimeout(searchTimer);
       var q = t.value.trim();

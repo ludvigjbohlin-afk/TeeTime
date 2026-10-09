@@ -1,4 +1,4 @@
-const CACHE = "tt-v1";
+const CACHE = "tt-v2";
 const SHARED = ["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 
 self.addEventListener("install", e => {
