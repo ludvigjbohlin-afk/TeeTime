@@ -1,0 +1,1457 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TeeTime</title>
+<meta name="description" content="Boka starttider, bevaka fulla tider och bjud in golfvänner.">
+<meta name="theme-color" content="#1d5c3b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TeeTime">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+/* Layout: mobilapp i en kolumn. Flikmeny längst ned, åtgärdsfält ovanför, tee-sheet som rutnät. */
+:root {
+  --bg: #f0f3ee; --surface: #ffffff; --ink: #14281e; --muted: #5b6e63; --line: #d5ddd5;
+  --green: #1d5c3b; --on-green: #ffffff; --tint: #e3ece4;
+  --free: #2f8a57; --few: #b97d0b; --full: #b5473c; --flag: #f2c230; --on-flag: #2a2200; --dusk: #4a4f8a;
+  --shadow: 0 1px 2px rgba(20,40,30,.10);
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --nav-h: 62px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1a14; --surface: #15251c; --ink: #e6efe8; --muted: #93a79b; --line: #27392e;
+    --green: #5fbf88; --on-green: #0b1a12; --tint: #1d3326; --free: #5fbf88; --few: #e0b24a; --full: #e07a6e; --dusk: #9aa0e6;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1a14; --surface: #15251c; --ink: #e6efe8; --muted: #93a79b; --line: #27392e;
+  --green: #5fbf88; --on-green: #0b1a12; --tint: #1d3326; --free: #5fbf88; --few: #e0b24a; --full: #e07a6e; --dusk: #9aa0e6;
+  --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+}
+:root.big { font-size: 112.5%; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 0.95rem; line-height: 1.45; padding-inline: 16px; padding-top: env(safe-area-inset-top, 0px); -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--green); }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.wrap { max-width: 720px; margin-inline: auto; padding-block: 14px calc(var(--nav-h) + 110px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.02em; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+.iconbtn { position: relative; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; width: 44px; height: 44px; display: grid; place-items: center; }
+.iconbtn svg { width: 22px; height: 22px; }
+h1, h2 { font-family: var(--font-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; }
+h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 4px 0 0; font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.grow { flex: 1; min-width: 0; }
+.note { font-size: .85rem; color: var(--muted); margin: 0; }
+p { margin: 0; }
+label, .lbl { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+input[type=date], input[type=time], input[type=text], input[type=number], input[type=email], input[type=password], input[type=search], select, textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px;
+}
+textarea { resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.form2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form2 .wide { grid-column: 1 / -1; }
+
+.status { font-size: .8rem; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: var(--tint); color: var(--muted); align-self: flex-start; }
+.status.off { background: color-mix(in srgb, var(--full) 18%, var(--surface)); color: var(--ink); }
+
+.clubbtn { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; background: transparent; padding: 0; }
+.clubbtn b { font-family: var(--font-display); font-size: 1.25rem; display: block; }
+.clubbtn span.note { display: block; }
+.clubbtn .chev { color: var(--green); font-weight: 700; font-size: .9rem; white-space: nowrap; }
+
+.strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.strip::-webkit-scrollbar { display: none; }
+.day { flex: none; width: 54px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.day .w { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.day .n { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; line-height: 1.1; }
+.day.we .w { color: var(--green); }
+.day[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.day[aria-pressed="true"] .w { color: var(--on-green); opacity: .85; }
+.day.other { width: auto; padding-inline: 12px; justify-content: center; font-size: .82rem; font-weight: 600; position: relative; }
+.day.other input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+
+.courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.course { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.course b { font-size: .95rem; }
+.course small { color: var(--muted); font-size: .78rem; }
+.course .p { font-family: var(--font-mono); font-size: .8rem; margin-top: 2px; }
+.course[aria-pressed="true"] { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); background: var(--tint); }
+
+.stepper { display: flex; align-items: center; justify-content: space-between; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; min-height: 44px; padding: 3px; gap: 6px; }
+.stepper button { width: 38px; height: 38px; border-radius: 8px; background: var(--surface); font-size: 1.25rem; line-height: 1; border: 1px solid var(--line); }
+.stepper button:disabled { opacity: .35; cursor: default; }
+.stepper output { font-family: var(--font-mono); font-size: 1.05rem; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: .82rem; font-weight: 600; }
+.fchip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.sun { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
+.sun b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+.legend { display: flex; gap: 12px; font-size: .75rem; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 7px; }
+.slot { position: relative; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 6px 7px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.slot .t { font-family: var(--font-mono); font-size: .95rem; }
+.slot .bars { display: flex; gap: 2px; width: 100%; }
+.slot .bars b { height: 5px; flex: 1; border-radius: 2px; background: var(--line); }
+.slot.ok .bars b.f { background: var(--free); }
+.slot.few .bars b.f { background: var(--few); }
+.slot.full .t, .slot.past .t, .slot.blocked .t { color: var(--muted); }
+.slot.full .t { text-decoration: line-through; text-decoration-thickness: 1px; }
+.slot.full .bars b { background: var(--full); opacity: .55; }
+.slot.past { opacity: .4; }
+.slot.blocked { background: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--tint) 6px 12px); }
+.slot.blocked .bars { visibility: hidden; }
+.slot .mk { position: absolute; top: 4px; right: 5px; display: flex; gap: 3px; }
+.slot .mk i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.slot .mk i.dusk { background: var(--dusk); }
+.slot .mk i.open { background: var(--flag); }
+.slot .mk i.watch { background: transparent; border: 1.5px solid var(--ink); }
+.slot .mk i.mine { background: var(--green); }
+.slot[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); }
+.slot[aria-pressed="true"] .t { color: var(--bg); text-decoration: none; }
+.slot[aria-pressed="true"] .mk i.watch { border-color: var(--bg); }
+.slot[aria-pressed="true"] .bars b { opacity: 1; }
+.info { border-radius: 10px; background: var(--tint); padding: 10px 12px; font-size: .9rem; }
+.info.warn { background: color-mix(in srgb, var(--full) 14%, var(--surface)); }
+.info.dusk { background: color-mix(in srgb, var(--dusk) 14%, var(--surface)); }
+.info.flag { background: color-mix(in srgb, var(--flag) 30%, var(--surface)); }
+.skeleton { height: 120px; border-radius: 10px; background: linear-gradient(90deg, var(--tint), var(--surface), var(--tint)); background-size: 200% 100%; animation: sh 1.2s infinite linear; }
+@keyframes sh { to { background-position: -200% 0; } }
+
+.actionbar { position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px; z-index: 5; }
+.actionbar .in { max-width: 720px; margin-inline: auto; display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.actionbar .sum { min-width: 0; flex: 1 1 170px; }
+.actionbar .sum strong { display: block; font-family: var(--font-display); font-size: 1.05rem; }
+.actionbar .sum span { font-size: .8rem; color: var(--muted); }
+nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 6; }
+nav.bottom .in { max-width: 720px; margin-inline: auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: var(--nav-h); }
+nav.bottom button { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: .7rem; font-weight: 600; color: var(--muted); position: relative; min-width: 0; }
+nav.bottom button svg { width: 22px; height: 22px; }
+nav.bottom button[aria-selected="true"] { color: var(--green); }
+.badge { position: absolute; top: 6px; left: calc(50% + 6px); background: var(--flag); color: var(--on-flag); font-size: .68rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; padding-inline: 4px; }
+.badge.quiet { background: var(--tint); color: var(--muted); }
+.iconbtn .badge { top: -6px; left: auto; right: -6px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 16px; font-weight: 600; min-height: 44px; text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn.primary { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.btn.warn { color: var(--full); border-color: var(--full); }
+.btn.small { padding: 6px 12px; min-height: 36px; font-size: .88rem; }
+.btn.block { width: 100%; }
+.btn.link { border: 0; background: transparent; color: var(--green); padding-inline: 4px; min-height: 0; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+.item { display: grid; grid-template-columns: auto 1fr; gap: 12px 14px; align-items: center; }
+.item .when { text-align: center; border-right: 1px solid var(--line); padding-right: 14px; min-width: 62px; }
+.item .when .d { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; line-height: 1.05; }
+.item .when .m { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.item .what { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.item .what .time { font-family: var(--font-mono); font-size: 1.1rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.item .what .meta { color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+.item .btns { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.item.ready { border-color: var(--flag); box-shadow: inset 4px 0 0 var(--flag); }
+.chip { display: inline-block; font-family: var(--font-body); font-size: .72rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--tint); color: var(--muted); letter-spacing: .02em; }
+.chip.ready, .chip.yes { background: var(--flag); color: var(--on-flag); }
+.chip.no { background: color-mix(in srgb, var(--full) 18%, var(--surface)); color: var(--ink); }
+.chip.code { font-family: var(--font-mono); font-weight: 500; }
+.empty { text-align: center; color: var(--muted); padding: 22px 12px; }
+.empty strong { display: block; color: var(--ink); font-family: var(--font-display); font-size: 1.05rem; margin-bottom: 4px; }
+.banner { background: var(--flag); color: var(--on-flag); border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; font-weight: 600; }
+.banner button { background: var(--on-flag); color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--tint); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.stat .v { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat .k { font-size: .75rem; color: var(--muted); }
+.hist { display: flex; flex-direction: column; }
+.hist div { display: grid; grid-template-columns: 7.5em 3.5em 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .88rem; }
+.hist div:first-child { border-top: 0; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toggle input { width: 22px; height: 22px; accent-color: var(--green); flex: none; }
+.toggle span { font-size: .9rem; }
+.person { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.person:first-child { border-top: 0; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--tint); color: var(--green); display: grid; place-items: center; font-weight: 700; flex: none; }
+.person .grow b { display: block; }
+.code-big { font-family: var(--font-mono); font-size: 1.6rem; letter-spacing: .1em; }
+.notif { display: grid; grid-template-columns: 10px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); text-align: left; background: transparent; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; }
+.notif:first-child { border-top: 0; }
+.notif .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--flag); margin-top: 7px; }
+.notif.read .dot { background: transparent; }
+.notif b { display: block; }
+.notif small { color: var(--muted); }
+.bars-h { display: flex; flex-direction: column; gap: 8px; }
+.bars-h .r { display: grid; grid-template-columns: 8.5em 1fr 4.5em; gap: 10px; align-items: center; font-size: .88rem; }
+.bars-h .track { height: 10px; background: var(--tint); border-radius: 5px; overflow: hidden; }
+.bars-h .fill { display: block; height: 100%; background: var(--green); border-radius: 5px; }
+.bars-h .n { font-family: var(--font-mono); font-size: .8rem; text-align: right; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 480px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.menu { display: flex; flex-direction: column; }
+.menu button { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 2px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; font-weight: 600; }
+.menu button:first-child { border-top: 0; }
+.menu button span.note { font-weight: 400; }
+
+.sheet { position: fixed; inset: 0; z-index: 20; background: rgba(8,18,12,.45); display: flex; align-items: flex-end; justify-content: center; padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.sheet-card { background: var(--surface); color: var(--ink); border-radius: 18px; width: 100%; max-width: 520px; max-height: calc(100% - 20px); overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+@media (min-width: 640px) { .sheet { align-items: center; } }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .9rem; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; }
+.total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 10px; }
+.total b { font-family: var(--font-display); font-size: 1.4rem; }
+.bigcode { font-family: var(--font-mono); font-size: 1.75rem; letter-spacing: .08em; text-align: center; padding: 10px; background: var(--tint); border-radius: 12px; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--tint); padding: 4px; border-radius: 10px; }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.seg button { border: 0; background: transparent; border-radius: 7px; padding: 8px 4px; font-size: .82rem; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.clublist { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
+.clublist button { text-align: left; border: 0; border-top: 1px solid var(--line); background: transparent; padding: 12px 4px; }
+.clublist button:first-child { border-top: 0; }
+.clublist button b { display: block; }
+
+/* Inloggning */
+.auth { min-height: 100vh; display: grid; place-items: center; padding-block: 24px; }
+.auth .card { width: 100%; max-width: 420px; }
+.hero { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.hero p { color: var(--muted); }
+
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 92px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 30; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s; }
+#toast.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } .skeleton { animation: none; } }
+@media (max-width: 440px) {
+  .form2 { grid-template-columns: 1fr; }
+  .stats .v { font-size: 1.15rem; }
+  nav.bottom button { font-size: .64rem; }
+  .hist div { grid-template-columns: 6.5em 3.2em 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ INLOGGNING ============ -->
+<div class="auth" id="authView" hidden>
+  <div class="card">
+    <div class="hero">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--green)"/><path d="M12 24V8l9 4-9 4" fill="none" stroke="var(--on-green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="14" cy="25" rx="6" ry="1.6" fill="var(--on-green)" opacity=".55"/></svg>
+        TeeTime
+      </div>
+      <p>Boka starttider, bevaka fulla tider och bjud in dina golfvänner.</p>
+    </div>
+    <div class="seg two" id="authSeg">
+      <button type="button" data-mode="in" aria-pressed="true">Logga in</button>
+      <button type="button" data-mode="up" aria-pressed="false">Skapa konto</button>
+    </div>
+    <form id="authForm" class="list" novalidate>
+      <div class="field" id="nameField" hidden><label for="aName">Namn</label><input type="text" id="aName" autocomplete="name" maxlength="60"></div>
+      <div class="field"><label for="aEmail">E-post</label><input type="email" id="aEmail" autocomplete="email" required></div>
+      <div class="field"><label for="aPw">Lösenord</label><input type="password" id="aPw" autocomplete="current-password" minlength="8" required></div>
+      <p class="note" id="authMsg" role="status"></p>
+      <button type="submit" class="btn primary block" id="authBtn">Logga in</button>
+      <button type="button" class="btn link" id="forgotBtn">Glömt lösenordet?</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APPEN ============ -->
+<div class="wrap" id="appView" hidden>
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--green)"/><path d="M12 24V8l9 4-9 4" fill="none" stroke="var(--on-green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><ellipse cx="14" cy="25" rx="6" ry="1.6" fill="var(--on-green)" opacity=".55"/></svg>
+      TeeTime
+    </div>
+    <button type="button" class="iconbtn" id="bellBtn" aria-label="Notiser">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+      <span class="badge" id="bellCount" hidden></span>
+    </button>
+  </header>
+  <div class="status" id="syncStatus" hidden></div>
+  <div class="banner" id="banner" role="status" hidden><span id="bannerText"></span><button type="button" id="bannerGo">Visa</button></div>
+
+  <section id="view-boka" class="list"></section>
+  <section id="view-mina" class="list" hidden></section>
+  <section id="view-vanner" class="list" hidden></section>
+  <section id="view-bevaka" class="list" hidden></section>
+  <section id="view-mer" class="list" hidden></section>
+</div>
+
+<div class="actionbar" id="actionbar" hidden>
+  <div class="in">
+    <div class="sum"><strong id="sumMain">Välj tid</strong><span id="sumSub"></span></div>
+    <div class="row">
+      <button type="button" class="btn" id="altBtn">Föreslå</button>
+      <button type="button" class="btn primary" id="mainBtn">Boka</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom" aria-label="Meny" id="nav" hidden>
+  <div class="in" role="tablist" id="tabs">
+    <button role="tab" data-tab="boka" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21V3l10 4.5L7 12"/></svg>Boka</button>
+    <button role="tab" data-tab="mina" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Mina tider<span class="badge quiet" id="cntMine" hidden></span></button>
+    <button role="tab" data-tab="vanner" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6-.4 4.6 1.3 5.5 4.4"/></svg>Vänner<span class="badge" id="cntFriends" hidden></span></button>
+    <button role="tab" data-tab="bevaka" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>Bevakning<span class="badge" id="cntWatch" hidden></span></button>
+    <button role="tab" data-tab="mer" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" hidden><div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetH" id="sheetCard"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+'use strict';
+/* ================= Konfiguration ================= */
+var SUPABASE_URL = 'https://lerviyfefqtnkyppvbqh.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_IUUrbkE6Ac1fT9g3qrxL-Q_a1lGI4rx';
+var VAPID_PUBLIC = 'BHFjcUlp9kRQ9qkgJSJrjAqsw8WbqYRujM-joYtrrHL70PxQNIUygQnN_JyCJgl64znueDqLYrydJNK11wnvrYs';
+var APP_URL = location.origin + location.pathname;
+var TZ = 'Europe/Stockholm';
+var WINDOWS = [{ v: 0, l: 'Exakt' }, { v: 30, l: '±30 min' }, { v: 60, l: '±1 tim' }, { v: 1440, l: 'Hela dagen' }];
+
+var sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
+
+var ERR = {
+  slot_full: 'Tiden hann bli full. Bevaka den, så får du besked om den blir ledig.',
+  blocked: 'Tiden är stängd av klubben.',
+  in_past: 'Tiden har redan passerat.',
+  too_far_ahead: 'Klubben har inte släppt tider så långt fram ännu.',
+  too_many_active: 'Du har nått max antal aktiva bokningar på klubben. Avboka en först.',
+  already_booked_time: 'Du har redan en bokning den tiden.',
+  bad_time: 'Det är ingen giltig starttid.',
+  bad_players: 'Fel antal spelare för bollen.',
+  too_late_to_cancel: 'Det är för sent att avboka. Kontakta klubben.',
+  too_late_to_change: 'Det är för sent att ändra bokningen.',
+  not_allowed: 'Du har inte behörighet till det.',
+  user_not_found: 'Hittade ingen spelare med den koden.',
+  cannot_friend_self: 'Du kan inte lägga till dig själv.',
+  pick_1_to_3_friends: 'Välj en till tre vänner.',
+  no_valid_friends: 'Ni måste vara golfvänner för att skicka förslag.',
+  proposal_closed: 'Förslaget är redan stängt.',
+  too_many_watches: 'Du har redan max antal bevakningar.',
+  too_many_clubs: 'Du kan administrera högst fem klubbar.',
+  'Invalid login credentials': 'Fel e-post eller lösenord.',
+  'User already registered': 'Det finns redan ett konto med den e-posten. Logga in i stället.',
+  'Password should be at least': 'Lösenordet måste vara minst 8 tecken.',
+  'Email not confirmed': 'Bekräfta din e-post via länken vi skickade först.',
+  'rate limit': 'För många försök. Vänta en stund och försök igen.'
+};
+function errMsg(e) {
+  var m = (e && (e.message || e.error_description)) || String(e || '');
+  for (var k in ERR) if (m.indexOf(k) >= 0) return ERR[k];
+  if (isNetErr(m)) return 'Ingen anslutning. Försök igen när du har nät.';
+  return 'Något gick fel. Försök igen.';
+}
+function isNetErr(m) { return navigator.onLine === false || /failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(m || ''); }
+
+/* ================= Hjälpfunktioner ================= */
+function $(id) { return document.getElementById(id); }
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function hm(t) { return String(t || '').slice(0, 5); }
+function fmtTime(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+function toMin(s) { var p = String(s).split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function dObj(i) { return new Date(i + 'T12:00:00'); }
+function fmtDate(i, o) { try { return dObj(i).toLocaleDateString('sv-SE', o || { weekday: 'short', day: 'numeric', month: 'short' }); } catch (e) { return i; } }
+function longDate(i) { return fmtDate(i, { weekday: 'long', day: 'numeric', month: 'long' }); }
+function isWeekend(i) { var d = dObj(i).getDay(); return d === 0 || d === 6; }
+function addDays(i, n) { var d = dObj(i); d.setDate(d.getDate() + n); return iso(d); }
+function kr(n) { return Math.round(n || 0).toLocaleString('sv-SE') + ' kr'; }
+function spelare(n) { return n + ' spelare'; }
+function initials(n) { return String(n || '?').split(/\s+/).map(function (x) { return x[0] || ''; }).join('').slice(0, 2).toUpperCase(); }
+function today() { return iso(new Date()); }
+function nowMin() { var n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
+function isPast(date, time) { var t = today(); return date < t || (date === t && toMin(time) <= nowMin() + 5); }
+function minsUntil(date, time) { return (new Date(date + 'T' + hm(time) + ':00') - new Date()) / 60000; }
+function ago(ts) {
+  var m = (Date.now() - new Date(ts)) / 60000;
+  if (m < 1) return 'nyss'; if (m < 60) return Math.round(m) + ' min sedan';
+  if (m < 1440) return Math.round(m / 60) + ' tim sedan';
+  return fmtDate(iso(new Date(ts)));
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+/* ================= Tillstånd ================= */
+var S = {
+  session: null, uid: null, profile: {}, settings: {}, email: '',
+  clubs: [], courses: [], adminClubs: [],
+  club: null, date: addDays(today(), 1), time: '10:00', course: 'any', players: 2,
+  filter: 'all', onlyFree: false, tab: 'boka',
+  sheet: null, sheetKey: '', sheetLoading: false,
+  rounds: [], watches: [], friends: [], proposals: [], notifs: [],
+  confirmCancel: null, online: navigator.onLine !== false, booted: false,
+  adminClub: null, adminDate: today(), adminList: [], adminSub: 'dag'
+};
+var toastTimer = null, chMain = null, chSheet = null, sheetTimer = null, lastFocus = null;
+
+function toast(msg) {
+  var t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 3600);
+}
+
+/* ================= Utseende (mörkt läge, större text) ================= */
+function applyLook() {
+  var th = lsGet('tt-theme') || 'system';
+  if (th === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', th);
+  document.documentElement.classList.toggle('big', lsGet('tt-big') === '1');
+}
+applyLook();
+
+/* ================= Solnedgång ================= */
+var sunCache = {};
+function sunTimes(date, lat, lng) {
+  lat = lat || 59.33; lng = lng || 18.06;
+  var key = date + lat + lng; if (sunCache[key]) return sunCache[key];
+  var rad = Math.PI / 180, J = Date.parse(date + 'T12:00:00Z') / 86400000 + 2440587.5;
+  var n = Math.ceil(J - 2451545.0 + 0.0008), Js = n - lng / 360;
+  var M = (357.5291 + 0.98560028 * Js) % 360;
+  var C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  var L = (M + C + 180 + 102.9372) % 360;
+  var Jt = 2451545.0 + Js + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * L * rad);
+  var sd = Math.sin(L * rad) * Math.sin(23.44 * rad), cd = Math.cos(Math.asin(sd));
+  var cw = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * sd) / (Math.cos(lat * rad) * cd);
+  var res = { rise: null, set: null };
+  if (cw > -1 && cw < 1) {
+    var w = Math.acos(cw) / rad;
+    var f = function (j) { var d = new Date((j - 2440587.5) * 86400000); try { return new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(d); } catch (e) { return fmtTime(d.getHours() * 60 + d.getMinutes()); } };
+    res.rise = f(Jt - w / 360); res.set = f(Jt + w / 360);
+  }
+  return (sunCache[key] = res);
+}
+
+/* ================= Data: klubbar och banor ================= */
+function club(id) { for (var i = 0; i < S.clubs.length; i++) if (S.clubs[i].id === id) return S.clubs[i]; return null; }
+function course(id) { for (var i = 0; i < S.courses.length; i++) if (S.courses[i].id === id) return S.courses[i]; return null; }
+function clubCourses(cid) { return S.courses.filter(function (c) { return c.club_id === cid && c.active; }).sort(function (a, b) { return a.sort - b.sort || a.name.localeCompare(b.name, 'sv'); }); }
+function courseName(id) { if (id === 'any') return 'Valfri bana'; var c = course(id); return c ? c.name : 'Bana'; }
+function isAdminOf(cid) { return S.adminClubs.indexOf(cid) >= 0; }
+
+/* ================= Tee-sheet ================= */
+function sheetRow(cid, t) { return S.sheet && S.sheet.rows[cid + '|' + t]; }
+function slotFor(t) {
+  // Sammanställ en starttid för vald bana eller för alla banor
+  var list = S.course === 'any' ? clubCourses(S.club).map(function (c) { return c.id; }) : [S.course];
+  var rows = list.map(function (id) { return sheetRow(id, t); }).filter(Boolean);
+  if (!rows.length) return null;
+  var free = 0, cap = 0, blocked = null, mine = false, groups = [], price = Infinity, allBlocked = true;
+  rows.forEach(function (r) {
+    free = Math.max(free, r.free); cap = Math.max(cap, r.capacity);
+    if (r.blocked) blocked = blocked || r.blocked; else allBlocked = false;
+    if (r.mine) mine = true;
+    if (r.free > 0 && r.open_groups && r.open_groups.length) r.open_groups.forEach(function (g) { groups.push({ name: g.name, players: g.players, course_id: r.course_id, free: r.free }); });
+    if (!r.blocked && r.free > 0) price = Math.min(price, r.price);
+  });
+  return { free: free, cap: cap, blocked: allBlocked ? blocked : null, mine: mine, groups: groups, price: price === Infinity ? rows[0].price : price };
+}
+function candidates(t, players) {
+  var list = S.course === 'any' ? clubCourses(S.club).map(function (c) { return c.id; }) : [S.course];
+  return list.map(function (id) { return sheetRow(id, t); })
+    .filter(function (r) { return r && !r.blocked && r.free >= players; })
+    .sort(function (a, b) { return b.free - a.free || a.price - b.price; });
+}
+function sheetTimes() { return S.sheet ? S.sheet.times : []; }
+function tooDark(date, time, cid) {
+  var cl = club(S.club) || {}, s = sunTimes(date, cl.lat, cl.lng); if (!s.set) return false;
+  var mins = cid && cid !== 'any' ? (course(cid) || {}).round_minutes || 255 : Math.max.apply(null, clubCourses(S.club).map(function (c) { return c.round_minutes; }).concat([90]));
+  return toMin(time) + mins > toMin(s.set);
+}
+
+async function loadSheet(force) {
+  if (!S.club || !sb) return;
+  var key = S.club + '|' + S.date;
+  if (!force && S.sheetKey === key && S.sheet) return;
+  var myKey = key; S.sheetLoading = !S.sheet || S.sheetKey !== key; S.sheetKey = key;
+  if (S.sheetLoading) renderBoka();
+  var r = await sb.rpc('get_day_sheet', { p_club: S.club, p_date: S.date });
+  if (S.sheetKey !== myKey) return;
+  S.sheetLoading = false;
+  if (r.error) { S.sheet = S.sheet && S.sheet.key === key ? S.sheet : null; renderBoka(); if (isNetErr(r.error.message)) setOnline(false); return; }
+  var rows = {}, times = {};
+  (r.data || []).forEach(function (x) { var t = hm(x.tee_time); x.tee_time = t; rows[x.course_id + '|' + t] = x; times[t] = 1; });
+  S.sheet = { key: key, rows: rows, times: Object.keys(times).sort() };
+  if (S.sheet.times.length && S.sheet.times.indexOf(S.time) < 0) {
+    var target = toMin(S.time), best = S.sheet.times[0];
+    S.sheet.times.forEach(function (t) { if (Math.abs(toMin(t) - target) < Math.abs(toMin(best) - target)) best = t; });
+    S.time = best;
+  }
+  renderBoka();
+}
+function scheduleSheetReload() { clearTimeout(sheetTimer); sheetTimer = setTimeout(function () { loadSheet(true); }, 250); }
+
+/* ================= Rendering: Boka ================= */
+function renderBoka() {
+  var v = $('view-boka');
+  if (!S.clubs.length) {
+    v.innerHTML = '<div class="card empty"><strong>Inga klubbar än</strong>När en klubb har registrerat sig i TeeTime kan du boka här. Driver du en klubb? Registrera den under Profil.</div>';
+    renderAction(); return;
+  }
+  var cl = club(S.club) || S.clubs[0];
+  var html = '';
+  html += '<div class="card"><button type="button" class="clubbtn" data-act="pick-club"><span class="grow"><b>' + esc(cl.name) + '</b><span class="note">' + esc([cl.city, cl.region].filter(Boolean).join(', ') || 'Golfklubb') + '</span></span><span class="chev">Byt klubb</span></button></div>';
+
+  // Datum
+  var strip = '';
+  for (var i = 0; i < 14; i++) {
+    var d = addDays(today(), i), w = i === 0 ? 'Idag' : i === 1 ? 'Imorg.' : fmtDate(d, { weekday: 'short' }).replace('.', '');
+    strip += '<button type="button" class="day' + (isWeekend(d) ? ' we' : '') + '" data-d="' + d + '" aria-pressed="' + (d === S.date) + '" aria-label="' + esc(longDate(d)) + '"><span class="w">' + esc(w) + '</span><span class="n">' + (+d.slice(8)) + '</span></button>';
+  }
+  var inStrip = S.date <= addDays(today(), 13);
+  strip += '<label class="day other"' + (inStrip ? '' : ' aria-pressed="true" style="background:var(--green);color:var(--on-green);border-color:var(--green)"') + '>' + (inStrip ? 'Annat datum' : esc(fmtDate(S.date))) + '<input type="date" id="fDate" min="' + today() + '" max="' + addDays(today(), cl.booking_days || 30) + '" value="' + S.date + '" aria-label="Välj annat datum"></label>';
+  html += '<div class="card"><div class="row between"><span class="lbl">Datum</span><span class="note">' + esc(longDate(S.date)) + (isWeekend(S.date) ? ' · helgpris' : '') + '</span></div><div class="strip" id="strip">' + strip + '</div></div>';
+
+  // Banor
+  var cs = clubCourses(cl.id);
+  var copts = [{ id: 'any', name: 'Valfri bana', sub: 'Första lediga' }].concat(cs.map(function (c) { return { id: c.id, name: c.name, sub: c.holes + ' hål · par ' + c.par + (c.length_m ? ' · ' + c.length_m.toLocaleString('sv-SE') + ' m' : ''), price: c.price + (isWeekend(S.date) ? c.weekend_add : 0) }; }));
+  if (cs.length > 1 || S.course !== 'any') {
+    html += '<div class="card"><span class="lbl">Bana</span><div class="courses">' + copts.map(function (c) {
+      return '<button type="button" class="course" data-c="' + c.id + '" aria-pressed="' + (S.course === c.id) + '"><b>' + esc(c.name) + '</b><small>' + esc(c.sub) + '</small>' + (c.price != null ? '<span class="p">' + kr(c.price) + '</span>' : '') + '</button>';
+    }).join('') + '</div></div>';
+  }
+
+  html += '<div class="card form2"><div class="field"><label for="fTime">Önskad starttid</label><input type="time" id="fTime" value="' + S.time + '"></div>' +
+    '<div class="field"><span class="lbl" id="lblPlayers">Antal spelare (max 4)</span><div class="stepper" role="group" aria-labelledby="lblPlayers"><button type="button" data-act="pminus" aria-label="Färre spelare"' + (S.players <= 1 ? ' disabled' : '') + '>−</button><output aria-live="polite">' + S.players + '</output><button type="button" data-act="pplus" aria-label="Fler spelare"' + (S.players >= 4 ? ' disabled' : '') + '>+</button></div></div></div>';
+
+  // Tee-sheet
+  var s = sunTimes(S.date, cl.lat, cl.lng);
+  html += '<div class="card"><div class="row between"><h2>Starttider · ' + esc(fmtDate(S.date)) + '</h2><div class="sun">' + (s.set ? '<span>Sol upp <b>' + s.rise + '</b></span><span>ned <b>' + s.set + '</b></span>' : '') + '</div></div>' +
+    '<div class="row between"><div class="chips">' +
+    [['all', 'Hela dagen'], ['am', 'Morgon'], ['mid', 'Mitt på dagen'], ['pm', 'Eftermiddag']].map(function (f) { return '<button type="button" class="fchip" data-f="' + f[0] + '" aria-pressed="' + (S.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') +
+    '</div><button type="button" class="fchip" data-act="onlyfree" aria-pressed="' + S.onlyFree + '">Bara lediga</button></div>';
+  if (S.sheetLoading || !S.sheet) html += '<div class="skeleton" aria-label="Laddar starttider"></div>';
+  else html += '<div class="grid" role="group" aria-label="Starttider">' + gridHtml() + '</div>';
+  html += '<div class="legend"><span><i style="background:var(--free)"></i>Ledigt</span><span><i style="background:var(--few)"></i>För få platser</span><span><i style="background:var(--full)"></i>Fullt</span><span><i style="background:var(--flag)"></i>Öppen grupp</span><span><i style="background:var(--green)"></i>Din tid</span><span><i style="background:var(--dusk)"></i>Mörkt före sista hålet</span><span><i style="border:1.5px solid var(--ink)"></i>Bevakad</span></div>';
+  html += '<div class="list">' + slotInfoHtml() + '</div></div>';
+
+  var y = window.scrollY, stripX = $('strip') ? $('strip').scrollLeft : null;
+  v.innerHTML = html;
+  if (stripX != null) $('strip').scrollLeft = stripX;
+  else { var cur = v.querySelector('.day[aria-pressed="true"]'); if (cur && cur.scrollIntoView) try { cur.scrollIntoView({ inline: 'center', block: 'nearest' }); window.scrollTo(0, y); } catch (e) {} }
+  renderAction();
+}
+function inFilter(m) {
+  if (S.filter === 'am') return m < 600; if (S.filter === 'mid') return m >= 600 && m < 780; if (S.filter === 'pm') return m >= 780; return true;
+}
+function myWatchCovers(t) {
+  return S.watches.some(function (w) {
+    if (w.club_id !== S.club || w.play_date !== S.date) return false;
+    if (w.course_id && S.course !== 'any' && w.course_id !== S.course) return false;
+    return Math.abs(toMin(w.tee_time) - toMin(t)) <= w.window_min;
+  });
+}
+function gridHtml() {
+  var html = '', shown = 0;
+  sheetTimes().forEach(function (t) {
+    var m = toMin(t); if (!inFilter(m)) return;
+    var sl = slotFor(t); if (!sl) return;
+    var past = isPast(S.date, t);
+    var cls = past ? 'past' : sl.blocked ? 'blocked' : sl.free >= S.players ? 'ok' : sl.free > 0 ? 'few' : 'full';
+    if (S.onlyFree && cls !== 'ok' && t !== S.time) return;
+    shown++;
+    var bars = ''; for (var i = 0; i < (sl.cap || 4); i++) bars += '<b' + (i < sl.free ? ' class="f"' : '') + '></b>';
+    var mk = '';
+    if (sl.mine) mk += '<i class="mine"></i>';
+    if (!past && tooDark(S.date, t, S.course)) mk += '<i class="dusk"></i>';
+    if (!past && sl.groups.length) mk += '<i class="open"></i>';
+    if (myWatchCovers(t)) mk += '<i class="watch"></i>';
+    var label = t + ', ' + (past ? 'passerad' : sl.blocked ? 'stängd: ' + sl.blocked : sl.free === 0 ? 'fullt' : sl.free + ' lediga platser') + (sl.mine ? ', din bokning' : '');
+    html += '<button type="button" class="slot ' + cls + '" data-t="' + t + '" aria-pressed="' + (t === S.time) + '" aria-label="' + esc(label) + '"' + (past ? ' disabled' : '') + '><span class="mk">' + mk + '</span><span class="t">' + t + '</span><span class="bars">' + bars + '</span></button>';
+  });
+  return shown ? html : '<p class="note" style="grid-column:1/-1">Inga tider i det här intervallet. Prova en annan del av dagen eller ett annat datum.</p>';
+}
+function slotInfoHtml() {
+  if (!S.sheet) return '';
+  var t = S.time, sl = slotFor(t), out = [];
+  if (!sl) return '';
+  var cl = club(S.club) || {};
+  if (sl.blocked) out.push('<div class="info warn"><b>Stängt:</b> ' + esc(sl.blocked) + '</div>');
+  if (!isPast(S.date, t) && tooDark(S.date, t, S.course)) {
+    var s = sunTimes(S.date, cl.lat, cl.lng), c = S.course === 'any' ? null : course(S.course), mins = c ? c.round_minutes : 255;
+    out.push('<div class="info dusk">Solen går ned ' + s.set + '. En runda' + (c ? ' på ' + c.holes + ' hål' : '') + ' tar ungefär ' + Math.floor(mins / 60) + ' tim ' + (mins % 60) + ' min, så de sista hålen kan bli mörka.</div>');
+  }
+  sl.groups.forEach(function (g) {
+    out.push('<div class="info flag"><b>Öppen grupp' + (S.course === 'any' ? ' på ' + esc(courseName(g.course_id)) : '') + ':</b> ' + esc(g.name) + (g.players > 1 ? ' + ' + (g.players - 1) : '') + ' söker fler. ' + g.free + (g.free === 1 ? ' plats' : ' platser') + ' kvar.</div>');
+  });
+  if (sl.mine) out.push('<div class="info">Du har redan en bokning ' + t + '. Den finns under Mina tider.</div>');
+  if (S.course !== 'any') { var cc = course(S.course); if (cc && cc.twilight_from && t >= hm(cc.twilight_from) && cc.twilight_pct) out.push('<div class="info">Skymningspris från ' + hm(cc.twilight_from) + ': ' + cc.twilight_pct + ' % rabatt.</div>'); }
+  return out.join('');
+}
+function renderAction() {
+  var bar = $('actionbar'), btn = $('mainBtn'), alt = $('altBtn');
+  if (S.tab !== 'boka' || !S.clubs.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  var sl = S.sheet ? slotFor(S.time) : null, past = isPast(S.date, S.time);
+  var cands = sl ? candidates(S.time, S.players) : [];
+  var canBook = !past && cands.length > 0;
+  $('sumMain').textContent = S.time + ' · ' + courseName(S.course);
+  var sub = fmtDate(S.date) + ' · ' + spelare(S.players);
+  if (!sl) sub += S.sheetLoading ? ' · laddar…' : '';
+  else if (past) sub += ' · har passerat';
+  else if (sl.blocked) sub += ' · stängt';
+  else if (!canBook) sub += sl.free === 0 ? ' · fullbokat' : ' · bara ' + sl.free + (sl.free === 1 ? ' plats' : ' platser');
+  else sub += ' · ' + kr(cands[0].price * S.players);
+  $('sumSub').textContent = sub;
+  var watched = myWatchCovers(S.time);
+  alt.hidden = past || !sl || !!sl.blocked;
+  alt.textContent = canBook ? 'Föreslå' : 'Hitta ledig';
+  alt.dataset.mode = canBook ? 'propose' : 'find';
+  if (!sl || past || sl.blocked) { btn.textContent = past ? 'Passerad' : 'Boka'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
+  else if (canBook) { btn.textContent = 'Boka'; btn.className = 'btn primary'; btn.disabled = !S.online; btn.dataset.mode = 'book'; }
+  else if (watched) { btn.textContent = 'Bevakas'; btn.className = 'btn'; btn.disabled = true; btn.dataset.mode = 'none'; }
+  else { btn.textContent = 'Bevaka'; btn.className = 'btn primary'; btn.disabled = !S.online; btn.dataset.mode = 'watch'; }
+}
+
+/* ================= Rendering: Mina tider ================= */
+function gcalLink(r) {
+  var end = toMin(r.tee_time) + (r.round_minutes || 255), d = r.play_date.replace(/-/g, '');
+  var st = d + 'T' + hm(r.tee_time).replace(':', '') + '00', en = d + 'T' + pad(Math.floor(end / 60) % 24) + pad(end % 60) + '00';
+  var details = 'Bokningskod ' + r.code + '. ' + spelare(r.players) + '. Bokat i TeeTime: ' + APP_URL;
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('Golf · ' + r.course_name) +
+    '&dates=' + st + '/' + en + '&ctz=' + encodeURIComponent(TZ) + '&details=' + encodeURIComponent(details) + '&location=' + encodeURIComponent(r.club_name);
+}
+function inviteText(r) {
+  return 'Golf ' + longDate(r.play_date) + ' kl ' + hm(r.tee_time) + ' på ' + r.course_name + ', ' + r.club_name + '. ' + spelare(r.players) + '. Bokningskod ' + r.code + '. ' + APP_URL;
+}
+function upcoming() { return S.rounds.filter(function (r) { return minsUntil(r.play_date, r.tee_time) > -30; }); }
+function pastRounds() { return S.rounds.filter(function (r) { return minsUntil(r.play_date, r.tee_time) <= -30; }).reverse(); }
+function roundCard(r) {
+  var left = minsUntil(r.play_date, r.tee_time), locked = left < (r.cancel_cutoff_min || 120);
+  var btns;
+  if (S.confirmCancel === r.id) btns = '<button type="button" class="btn small warn" data-act="cancel-yes" data-id="' + r.id + '">Ja, avboka</button><button type="button" class="btn small" data-act="cancel-no">Behåll tiden</button>';
+  else {
+    btns = '<a class="btn small" href="' + esc(gcalLink(r)) + '" target="_blank" rel="noopener">Lägg i kalender</a><button type="button" class="btn small" data-act="copy-round" data-id="' + r.id + '">Dela</button>';
+    if (r.is_owner) btns += locked ? '<span class="note">Avbokning stängd ' + Math.round((r.cancel_cutoff_min || 120) / 60) + ' tim före start</span>' :
+      '<button type="button" class="btn small" data-act="edit" data-id="' + r.id + '">Ändra</button><button type="button" class="btn small" data-act="cancel" data-id="' + r.id + '">Avboka</button>';
+  }
+  var who = r.is_owner ? ['Du'].concat(r.guests || []) : [r.owner_name].concat(r.guests || []);
+  while (who.length < r.players) who.push('Gäst');
+  return '<div class="card item"><div class="when"><div class="d">' + (+r.play_date.slice(8)) + '</div><div class="m">' + esc(fmtDate(r.play_date, { month: 'short', weekday: 'short' })) + '</div></div>' +
+    '<div class="what"><div class="time">' + hm(r.tee_time) + ' <span class="chip code">' + esc(r.code) + '</span>' + (r.open_group ? ' <span class="chip ready">Öppen grupp</span>' : '') + (!r.is_owner ? ' <span class="chip">Bokad av ' + esc(r.owner_name) + '</span>' : '') + '</div>' +
+    '<div class="meta">' + esc(r.course_name) + ', ' + esc(r.club_name) + '</div>' +
+    '<div class="meta">' + esc(who.slice(0, r.players).join(', ')) + ' · ' + kr(r.price_each * r.players) + (left > 0 && left < 1440 ? ' · om ' + (left < 60 ? Math.round(left) + ' min' : Math.floor(left / 60) + ' tim') : '') + '</div></div>' +
+    '<div class="btns">' + btns + '</div></div>';
+}
+function renderMine() {
+  var up = upcoming(), hist = pastRounds(), html = '';
+  html += up.length ? up.map(roundCard).join('') : '<div class="card empty"><strong>Inga bokade tider</strong>Välj klubb, datum och tid under Boka.<br><br><button type="button" class="btn primary" data-act="goto" data-tab="boka">Boka en tid</button></div>';
+  if (hist.length) html += '<div class="card"><h2>Spelade rundor</h2><div class="hist">' + hist.slice(0, 15).map(function (r) {
+    return '<div><span>' + esc(fmtDate(r.play_date, { day: 'numeric', month: 'short', year: 'numeric' })) + '</span><span class="mono">' + hm(r.tee_time) + '</span><span>' + esc(r.course_name) + ', ' + esc(r.club_name) + '</span></div>';
+  }).join('') + '</div></div>';
+  $('view-mina').innerHTML = html;
+  $('cntMine').textContent = up.length; $('cntMine').hidden = !up.length;
+}
+
+/* ================= Rendering: Bevakning ================= */
+function windowLabel(w) {
+  if (!w.window_min) return hm(w.tee_time);
+  if (w.window_min >= 1440) return 'hela dagen';
+  return hm(w.tee_time) + ' ±' + (w.window_min >= 60 ? (w.window_min / 60) + ' tim' : w.window_min + ' min');
+}
+function renderWatch() {
+  var list = S.watches.filter(function (w) { return w.play_date >= today(); }).sort(function (a, b) { return (a.play_date + a.tee_time).localeCompare(b.play_date + b.tee_time); });
+  var ready = list.filter(function (w) { return w.ready_at; }).length;
+  var html = '<div class="card"><h2>Bevakade tider</h2><p class="note">När en bevakad tid blir ledig får du en notis i telefonen' + (S.settings.notify_email ? ' och ett mejl' : '') + ', även när appen är stängd. Den som bokar först får tiden.</p>' +
+    (pushState() !== 'on' ? '<button type="button" class="btn small primary" data-act="enable-push" style="align-self:flex-start">Slå på notiser i telefonen</button>' : '') + '</div>';
+  if (!list.length) html += '<div class="card empty"><strong>Inga bevakningar</strong>Är en tid full? Välj den under Boka och tryck Bevaka. Du kan bevaka en exakt tid eller ett tidsfönster.</div>';
+  html += list.map(function (w) {
+    var cl = club(w.club_id) || { name: '' }, rs = w.ready_slot;
+    return '<div class="card item' + (w.ready_at ? ' ready' : '') + '"><div class="when"><div class="d">' + (+w.play_date.slice(8)) + '</div><div class="m">' + esc(fmtDate(w.play_date, { month: 'short', weekday: 'short' })) + '</div></div>' +
+      '<div class="what"><div class="time">' + esc(windowLabel(w)) + ' <span class="chip' + (w.ready_at ? ' ready' : '') + '">' + (w.ready_at && rs ? 'Ledig ' + esc(rs.tee_time) : 'Bevakar') + '</span></div>' +
+      '<div class="meta">' + esc(w.course_id ? courseName(w.course_id) : 'Valfri bana') + ', ' + esc(cl.name) + ' · ' + spelare(w.players) + '</div></div>' +
+      '<div class="btns">' + (w.ready_at && rs ? '<button type="button" class="btn small primary" data-act="book-watch" data-id="' + w.id + '">Boka ' + esc(rs.tee_time) + ' på ' + esc(rs.course_name) + '</button>' : '') +
+      '<button type="button" class="btn small" data-act="unwatch" data-id="' + w.id + '">Sluta bevaka</button></div></div>';
+  }).join('');
+  $('view-bevaka').innerHTML = html;
+  var cw = $('cntWatch'); cw.textContent = ready || list.length; cw.hidden = !list.length; cw.className = 'badge' + (ready ? '' : ' quiet');
+  var b = $('banner');
+  if (ready && S.tab !== 'bevaka') { $('bannerText').textContent = ready === 1 ? 'En bevakad tid har blivit ledig.' : ready + ' bevakade tider har blivit lediga.'; b.hidden = false; }
+  else b.hidden = true;
+}
+
+/* ================= Rendering: Vänner och förslag ================= */
+function renderFriends() {
+  var acc = S.friends.filter(function (f) { return f.status === 'accepted'; });
+  var inc = S.friends.filter(function (f) { return f.status === 'pending' && f.incoming; });
+  var out = S.friends.filter(function (f) { return f.status === 'pending' && !f.incoming; });
+  var props = S.proposals.filter(function (p) { return p.status === 'open' || minsUntil(p.play_date, p.tee_time) > -60; });
+  var toAnswer = props.filter(function (p) { return p.created_by !== S.uid && p.status === 'open' && p.my_response === 'pending'; });
+  var html = '';
+
+  html += '<div class="card"><div class="row between"><h2>Golfförslag</h2><button type="button" class="btn small primary" data-act="goto" data-tab="boka">Nytt förslag</button></div>';
+  if (!props.length) html += '<p class="note">Välj en tid under Boka och tryck Föreslå för att fråga upp till tre vänner. När de svarat bokar du med ett tryck.</p>';
+  html += props.map(function (p) {
+    var mineP = p.created_by === S.uid, members = p.members || [];
+    var yes = members.filter(function (m) { return m.response === 'yes'; }).length;
+    var head = '<div class="row between"><b>' + esc(longDate(p.play_date)) + ' kl ' + hm(p.tee_time) + '</b><span class="chip' + (p.status === 'booked' ? ' yes' : p.status === 'cancelled' ? ' no' : '') + '">' + (p.status === 'booked' ? 'Bokad' : p.status === 'cancelled' ? 'Inställd' : mineP ? yes + ' av ' + members.length + ' ja' : 'Väntar på svar') + '</span></div>' +
+      '<p class="note">' + esc(p.course_name) + ', ' + esc(p.club_name) + ' · från ' + esc(mineP ? 'dig' : p.creator_name) + '</p>' +
+      (p.message ? '<p>“' + esc(p.message) + '”</p>' : '') +
+      '<div class="chips">' + members.map(function (m) { return '<span class="chip ' + (m.response === 'yes' ? 'yes' : m.response === 'no' ? 'no' : '') + '">' + esc(m.user_id === S.uid ? 'Du' : m.name) + ': ' + ({ yes: 'ja', no: 'nej', maybe: 'kanske', pending: 'inte svarat' })[m.response] + '</span>'; }).join('') + '</div>';
+    var btns = '';
+    if (p.status === 'open') {
+      if (mineP) btns = '<button type="button" class="btn small primary" data-act="book-prop" data-id="' + p.id + '">Boka för ' + (1 + yes) + '</button><button type="button" class="btn small" data-act="cancel-prop" data-id="' + p.id + '">Ta tillbaka</button>';
+      else btns = ['yes', 'maybe', 'no'].map(function (r) { return '<button type="button" class="btn small' + (p.my_response === r ? ' primary' : '') + '" data-act="answer" data-r="' + r + '" data-id="' + p.id + '">' + ({ yes: 'Ja, jag spelar', maybe: 'Kanske', no: 'Kan inte' })[r] + '</button>'; }).join('');
+    }
+    return '<div class="info" style="display:flex;flex-direction:column;gap:8px">' + head + (btns ? '<div class="row">' + btns + '</div>' : '') + '</div>';
+  }).join('');
+  html += '</div>';
+
+  if (inc.length) html += '<div class="card"><h2>Vänförfrågningar</h2><div>' + inc.map(function (f) {
+    return '<div class="person"><span class="avatar">' + esc(initials(f.display_name)) + '</span><span class="grow"><b>' + esc(f.display_name) + '</b><span class="note">' + (f.hcp != null ? 'hcp ' + f.hcp : '') + '</span></span><button type="button" class="btn small primary" data-act="friend-yes" data-id="' + f.user_id + '">Godkänn</button><button type="button" class="btn small" data-act="friend-no" data-id="' + f.user_id + '">Neka</button></div>';
+  }).join('') + '</div></div>';
+
+  html += '<div class="card"><h2>Mina golfvänner</h2>' + (acc.length ? '<div>' + acc.map(function (f) {
+    return '<div class="person"><span class="avatar">' + esc(initials(f.display_name)) + '</span><span class="grow"><b>' + esc(f.display_name) + '</b><span class="note">' + (f.hcp != null ? 'hcp ' + f.hcp : 'Golfvän') + '</span></span><button type="button" class="btn small" data-act="unfriend" data-id="' + f.user_id + '" aria-label="Ta bort ' + esc(f.display_name) + '">Ta bort</button></div>';
+  }).join('') + '</div>' : '<p class="note">Inga vänner än. Sök på namn eller dela din vänkod nedan.</p>') +
+    (out.length ? '<p class="note">Väntar på svar från ' + esc(out.map(function (f) { return f.display_name; }).join(', ')) + '.</p>' : '') + '</div>';
+
+  html += '<div class="card"><h2>Lägg till vänner</h2>' +
+    '<div class="field"><label for="pSearch">Sök spelare</label><input type="search" id="pSearch" placeholder="Namn" autocomplete="off"></div><div id="pResults"></div>' +
+    '<div class="field"><label for="fCode">Eller ange vänkod</label><div class="row"><input type="text" id="fCode" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;flex:1;min-width:0"><button type="button" class="btn" data-act="add-code">Lägg till</button></div></div>' +
+    '<div class="info row between"><span>Din vänkod: <span class="code-big">' + esc(S.profile.friend_code || '') + '</span></span><button type="button" class="btn small" data-act="share-code">Dela länk</button></div></div>';
+  $('view-vanner').innerHTML = html;
+  var n = inc.length + toAnswer.length; $('cntFriends').textContent = n; $('cntFriends').hidden = !n;
+}
+
+/* ================= Rendering: Profil / Mer ================= */
+function pushState() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  return lsGet('tt-push-' + S.uid) === '1' && Notification.permission === 'granted' ? 'on' : 'off';
+}
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function isStandalone() { return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || navigator.standalone; }
+function renderMer() {
+  var p = S.profile, st = S.settings, ps = pushState();
+  var year = String(new Date().getFullYear()), hist = pastRounds().filter(function (r) { return r.play_date.slice(0, 4) === year; });
+  var counts = {}; hist.forEach(function (r) { counts[r.club_name] = (counts[r.club_name] || 0) + 1; });
+  var fav = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+  var html = '<div class="card"><div class="row"><span class="avatar" style="width:48px;height:48px;font-size:1.1rem">' + esc(initials(p.display_name)) + '</span><span class="grow"><b style="font-size:1.1rem">' + esc(p.display_name || 'Golfare') + '</b><span class="note" style="display:block">' + (p.hcp != null ? 'hcp ' + p.hcp + ' · ' : '') + esc(S.email) + '</span></span></div>' +
+    '<div class="stats"><div class="stat"><div class="v">' + hist.length + '</div><div class="k">rundor ' + year + '</div></div><div class="stat"><div class="v">' + esc(fav || '–') + '</div><div class="k">mest spelad</div></div><div class="stat"><div class="v">' + S.friends.filter(function (f) { return f.status === 'accepted'; }).length + '</div><div class="k">golfvänner</div></div></div></div>';
+
+  html += '<div class="card"><h2>Golfprofil</h2><div class="form2">' +
+    '<div class="field wide"><label for="prName">Namn</label><input type="text" id="prName" maxlength="60" value="' + esc(p.display_name || '') + '"></div>' +
+    '<div class="field"><label for="prHcp">Handicap</label><input type="text" inputmode="decimal" id="prHcp" value="' + (p.hcp != null ? esc(String(p.hcp).replace('.', ',')) : '') + '" placeholder="t.ex. 18,4"></div>' +
+    '<div class="field"><label for="prGolfId">Golf-ID</label><input type="text" id="prGolfId" maxlength="20" value="' + esc(st.golf_id || '') + '" placeholder="ÅÅMMDD-123"></div>' +
+    '<div class="field"><label for="prHome">Hemmaklubb</label><select id="prHome"><option value="">Ingen</option>' + S.clubs.map(function (c) { return '<option value="' + c.id + '"' + (p.home_club === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label for="prPlayers">Brukar vara</label><select id="prPlayers">' + [1, 2, 3, 4].map(function (n) { return '<option value="' + n + '"' + ((st.default_players || 2) === n ? ' selected' : '') + '>' + spelare(n) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field wide"><label for="prFav">Vanliga medspelare utan konto (skilj med komma)</label><input type="text" id="prFav" maxlength="300" value="' + esc((st.favorite_friends || []).join(', ')) + '" placeholder="Pappa, Kalle"></div>' +
+    '</div><button type="button" class="btn primary" data-act="save-profile">Spara profil</button></div>';
+
+  html += '<div class="card"><h2>Notiser</h2>' +
+    '<div class="row between"><span class="grow">Notiser i telefonen<br><span class="note">' +
+    (ps === 'on' ? 'Påslagna på den här enheten.' : ps === 'denied' ? 'Blockerade. Tillåt notiser för appen i telefonens inställningar.' : ps === 'unsupported' ? (isIOS() && !isStandalone() ? 'På iPhone: tryck Dela och sedan Lägg till på hemskärmen. Öppna appen därifrån och slå på notiser.' : 'Stöds inte i den här webbläsaren.') : 'Avstängda på den här enheten.') +
+    '</span></span>' + (ps === 'on' ? '<button type="button" class="btn small" data-act="disable-push">Stäng av</button>' : ps === 'off' ? '<button type="button" class="btn small primary" data-act="enable-push">Slå på</button>' : '') + '</div>' +
+    '<label class="toggle" for="stEmail"><span>Mejl när en bevakad tid blir ledig, när du får förslag och vid avbokningar</span><input type="checkbox" id="stEmail"' + (st.notify_email ? ' checked' : '') + '></label>' +
+    '<label class="toggle" for="stRemind"><span>Påminnelse kvällen före rundan</span><input type="checkbox" id="stRemind"' + (st.remind_day_before ? ' checked' : '') + '></label></div>';
+
+  html += '<div class="card"><h2>Utseende</h2><div class="field"><span class="lbl">Tema</span><div class="seg three" id="themeSeg">' +
+    [['system', 'Som telefonen'], ['light', 'Ljust'], ['dark', 'Mörkt']].map(function (o) { return '<button type="button" data-act="theme" data-v="' + o[0] + '" aria-pressed="' + ((lsGet('tt-theme') || 'system') === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+    '<label class="toggle" for="stBig"><span>Större text</span><input type="checkbox" id="stBig"' + (lsGet('tt-big') === '1' ? ' checked' : '') + '></label></div>';
+
+  html += '<div class="card"><h2>Klubb</h2><div class="menu">' +
+    S.adminClubs.map(function (cid) { var c = club(cid); return c ? '<button type="button" data-act="admin" data-id="' + cid + '"><span>Administrera ' + esc(c.name) + '</span><span class="note">Startlista, banor, stängningar</span></button>' : ''; }).join('') +
+    '<button type="button" data-act="new-club"><span>Registrera en klubb</span><span class="note">För klubbar som vill ha sina tider i TeeTime</span></button></div></div>';
+
+  html += '<div class="card"><h2>Konto</h2><div class="menu">' +
+    '<button type="button" data-act="acc-email"><span>Byt e-post</span><span class="note">' + esc(S.email) + '</span></button>' +
+    '<button type="button" data-act="acc-pw"><span>Byt lösenord</span><span class="note">›</span></button>' +
+    '<button type="button" data-act="logout"><span>Logga ut</span><span class="note">›</span></button>' +
+    '<button type="button" data-act="acc-delete"><span style="color:var(--full)">Radera mitt konto</span><span class="note">›</span></button></div></div>';
+  html += '<p class="note" style="text-align:center">TeeTime · bokningsregler sätts av varje klubb</p>';
+  $('view-mer').innerHTML = html;
+}
+
+/* ================= Klubbadmin ================= */
+async function renderAdmin() {
+  var cid = S.adminClub, c = club(cid); if (!c) return;
+  var cs = S.courses.filter(function (x) { return x.club_id === cid; }).sort(function (a, b) { return a.sort - b.sort; });
+  var html = '<h2 id="sheetH">' + esc(c.name) + '</h2><div class="seg three" id="admSeg">' +
+    [['dag', 'Startlista'], ['banor', 'Banor'], ['klubb', 'Inställningar']].map(function (o) { return '<button type="button" data-act="adm-tab" data-v="' + o[0] + '" aria-pressed="' + (S.adminSub === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+  if (S.adminSub === 'dag') {
+    var day = S.adminList;
+    var slotsPer = {}; cs.forEach(function (x) { slotsPer[x.id] = (Math.floor((toMin(hm(x.last_tee)) - toMin(hm(x.first_tee))) / x.interval_min) + 1) * x.capacity; });
+    html += '<div class="field"><label for="admDate">Datum</label><input type="date" id="admDate" value="' + S.adminDate + '"></div>';
+    html += '<div class="bars-h">' + cs.filter(function (x) { return x.active; }).map(function (x) {
+      var n = day.filter(function (b) { return b.course_id === x.id; }).reduce(function (s, b) { return s + b.players; }, 0);
+      return '<div class="r"><span>' + esc(x.name) + '</span><span class="track"><span class="fill" style="width:' + Math.min(100, n / (slotsPer[x.id] || 1) * 100).toFixed(1) + '%"></span></span><span class="n">' + n + '/' + slotsPer[x.id] + '</span></div>';
+    }).join('') + '</div>';
+    html += '<p class="note">' + day.length + ' bokningar · ' + day.reduce(function (s, b) { return s + b.players; }, 0) + ' spelare · ' + kr(day.reduce(function (s, b) { return s + b.price_each * b.players; }, 0)) + '</p>';
+    html += day.length ? '<div class="tablewrap"><table><thead><tr><th>Tid</th><th>Bana</th><th>Spelare</th><th>Bokad av</th><th>Kod</th><th></th></tr></thead><tbody>' + day.map(function (b) {
+      return '<tr><td class="mono">' + hm(b.tee_time) + '</td><td>' + esc(b.course_name) + '</td><td>' + b.players + (b.guests && b.guests.length ? '<br><span class="note">' + esc(b.guests.join(', ')) + '</span>' : '') + '</td><td>' + esc(b.booker) + (b.hcp != null ? ' <span class="note">(' + b.hcp + ')</span>' : '') + '</td><td class="mono">' + esc(b.code) + '</td><td><button type="button" class="btn small" data-act="adm-cancel" data-id="' + b.id + '">Avboka</button></td></tr>';
+    }).join('') + '</tbody></table></div>' : '<p class="note">Inga bokningar den dagen.</p>';
+    var blocks = S.adminBlocks || [];
+    html += '<h3>Stäng tider</h3><div class="form2"><div class="field"><label for="bFrom">Från</label><input type="time" id="bFrom" value="08:00"></div><div class="field"><label for="bTo">Till</label><input type="time" id="bTo" value="10:00"></div>' +
+      '<div class="field"><label for="bCourse">Bana</label><select id="bCourse"><option value="">Alla banor</option>' + cs.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="bReason">Orsak</label><input type="text" id="bReason" maxlength="80" placeholder="Klubbtävling"></div></div><button type="button" class="btn primary" data-act="adm-block">Stäng tiderna</button>' +
+      blocks.map(function (b) { return '<div class="info row between"><span><b>' + hm(b.from_time) + '–' + hm(b.to_time) + '</b> · ' + esc(b.course_id ? courseName(b.course_id) : 'Alla banor') + ' · ' + esc(b.reason) + '</span><button type="button" class="btn small" data-act="adm-unblock" data-id="' + b.id + '">Öppna</button></div>'; }).join('');
+  } else if (S.adminSub === 'banor') {
+    html += cs.map(function (x) {
+      return '<div class="info" style="display:flex;flex-direction:column;gap:6px"><div class="row between"><b>' + esc(x.name) + (x.active ? '' : ' (inaktiv)') + '</b><button type="button" class="btn small" data-act="adm-course" data-id="' + x.id + '">Redigera</button></div><span class="note">' + x.holes + ' hål · par ' + x.par + ' · ' + kr(x.price) + ' · starttider ' + hm(x.first_tee) + '–' + hm(x.last_tee) + ' var ' + x.interval_min + ':e min</span></div>';
+    }).join('') + '<button type="button" class="btn primary" data-act="adm-course" data-id="">Lägg till bana</button>';
+  } else {
+    html += '<div class="form2"><div class="field wide"><label for="cName">Klubbens namn</label><input type="text" id="cName" value="' + esc(c.name) + '" maxlength="80"></div>' +
+      '<div class="field"><label for="cCity">Ort</label><input type="text" id="cCity" value="' + esc(c.city) + '"></div><div class="field"><label for="cRegion">Distrikt</label><input type="text" id="cRegion" value="' + esc(c.region) + '"></div>' +
+      '<div class="field"><label for="cLat">Latitud (för solnedgång)</label><input type="text" inputmode="decimal" id="cLat" value="' + (c.lat != null ? c.lat : '') + '" placeholder="59.33"></div><div class="field"><label for="cLng">Longitud</label><input type="text" inputmode="decimal" id="cLng" value="' + (c.lng != null ? c.lng : '') + '" placeholder="18.06"></div>' +
+      '<div class="field"><label for="cDays">Bokningsbara dagar framåt</label><input type="number" id="cDays" min="1" max="365" value="' + c.booking_days + '"></div><div class="field"><label for="cCut">Avbokning senast (min före)</label><input type="number" id="cCut" min="0" max="2880" value="' + c.cancel_cutoff_min + '"></div>' +
+      '<div class="field"><label for="cMax">Max aktiva bokningar per person</label><input type="number" id="cMax" min="1" max="20" value="' + c.max_active + '"></div><div class="field"><label for="cPhone">Telefon</label><input type="text" id="cPhone" value="' + esc(c.phone) + '"></div>' +
+      '<div class="field wide"><label for="cDesc">Beskrivning</label><textarea id="cDesc" rows="3" maxlength="600">' + esc(c.description) + '</textarea></div></div>' +
+      '<button type="button" class="btn primary" data-act="adm-save-club">Spara</button>' +
+      '<h3>Fler administratörer</h3><div class="row"><input type="text" id="admCode" maxlength="6" placeholder="Vänkod" style="flex:1;min-width:0;text-transform:uppercase"><button type="button" class="btn" data-act="adm-add-admin">Lägg till</button></div>';
+  }
+  html += '<button type="button" class="btn block" data-act="close">Stäng</button>';
+  var card = $('sheetCard'), y = card.scrollTop;
+  if ($('sheet').hidden) openSheet(html); else { card.innerHTML = html; card.scrollTop = y; }
+}
+async function loadAdminDay() {
+  var r = await sb.rpc('club_day_list', { p_club: S.adminClub, p_date: S.adminDate });
+  S.adminList = (r.data || []).map(function (b) { b.tee_time = hm(b.tee_time); return b; });
+  var bl = await sb.from('blocks').select('*').eq('club_id', S.adminClub).eq('play_date', S.adminDate).order('from_time');
+  S.adminBlocks = bl.data || [];
+}
+function courseForm(x) {
+  x = x || { name: '', holes: 18, par: 72, length_m: '', round_minutes: 255, price: 500, weekend_add: 100, twilight_from: '15:00', twilight_pct: 30, first_tee: '07:00', last_tee: '17:00', interval_min: 10, capacity: 4, active: true, description: '' };
+  openSheet('<h2 id="sheetH">' + (x.id ? 'Redigera bana' : 'Ny bana') + '</h2><div class="form2">' +
+    '<div class="field wide"><label for="kName">Namn</label><input type="text" id="kName" value="' + esc(x.name) + '" maxlength="60"></div>' +
+    '<div class="field"><label for="kHoles">Hål</label><select id="kHoles">' + [6, 9, 12, 18, 27, 36].map(function (n) { return '<option' + (x.holes === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label for="kPar">Par</label><input type="number" id="kPar" value="' + x.par + '"></div>' +
+    '<div class="field"><label for="kLen">Längd (m)</label><input type="number" id="kLen" value="' + (x.length_m || '') + '"></div>' +
+    '<div class="field"><label for="kMins">Rundans längd (min)</label><input type="number" id="kMins" value="' + x.round_minutes + '"></div>' +
+    '<div class="field"><label for="kPrice">Greenfee (kr)</label><input type="number" id="kPrice" value="' + x.price + '"></div>' +
+    '<div class="field"><label for="kWeek">Helgtillägg (kr)</label><input type="number" id="kWeek" value="' + x.weekend_add + '"></div>' +
+    '<div class="field"><label for="kTw">Skymningspris från</label><input type="time" id="kTw" value="' + hm(x.twilight_from || '') + '"></div>' +
+    '<div class="field"><label for="kTwp">Skymningsrabatt (%)</label><input type="number" id="kTwp" value="' + x.twilight_pct + '"></div>' +
+    '<div class="field"><label for="kFirst">Första start</label><input type="time" id="kFirst" value="' + hm(x.first_tee) + '"></div>' +
+    '<div class="field"><label for="kLast">Sista start</label><input type="time" id="kLast" value="' + hm(x.last_tee) + '"></div>' +
+    '<div class="field"><label for="kInt">Minuter mellan starter</label><input type="number" id="kInt" min="5" max="30" value="' + x.interval_min + '"></div>' +
+    '<div class="field"><label for="kCap">Max spelare per boll</label><select id="kCap">' + [1, 2, 3, 4].map(function (n) { return '<option' + (x.capacity === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
+    '<label class="toggle wide" for="kActive"><span>Bokningsbar</span><input type="checkbox" id="kActive"' + (x.active ? ' checked' : '') + '></label></div>' +
+    '<div class="row"><button type="button" class="btn" data-act="admin" data-id="' + S.adminClub + '">Tillbaka</button><button type="button" class="btn primary" style="flex:1" data-act="adm-save-course" data-id="' + (x.id || '') + '">Spara bana</button></div>');
+}
+
+/* ================= Ark (modaler) ================= */
+function openSheet(html) {
+  if ($('sheet').hidden) lastFocus = document.activeElement;
+  $('sheetCard').innerHTML = html; $('sheet').hidden = false; $('sheetCard').scrollTop = 0;
+  var f = $('sheetCard').querySelector('input,select,textarea,button.primary'); if (f && !('ontouchstart' in window)) f.focus();
+}
+function closeSheet() { $('sheet').hidden = true; $('sheetCard').innerHTML = ''; if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {} }
+
+var draft = null;
+function openConfirm(courseId, date, time, players, extra) {
+  var c = course(courseId), cl = club(c.club_id), row = S.sheet && S.sheet.key === cl.id + '|' + date ? sheetRow(courseId, time) : null;
+  var unit = row ? row.price : c.price + (isWeekend(date) ? c.weekend_add : 0);
+  draft = { course: courseId, date: date, time: time, players: players, watchId: extra && extra.watchId };
+  var favs = S.settings.favorite_friends || [], friends = S.friends.filter(function (f) { return f.status === 'accepted'; }).map(function (f) { return f.display_name; });
+  var names = favs.concat(friends).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+  var guests = ''; for (var i = 2; i <= players; i++) guests += '<div class="field"><label for="g' + i + '">Spelare ' + i + '</label><input type="text" id="g' + i + '" maxlength="40" list="nameList" placeholder="Namn (valfritt)"></div>';
+  var groups = row && row.open_groups && row.open_groups.length ? row.open_groups : [];
+  var s = sunTimes(date, cl.lat, cl.lng), dark = s.set && toMin(time) + c.round_minutes > toMin(s.set);
+  openSheet('<h2 id="sheetH">Bekräfta bokning</h2>' +
+    '<dl class="kv"><dt>Klubb</dt><dd>' + esc(cl.name) + '</dd><dt>Bana</dt><dd>' + esc(c.name) + '</dd><dt>Datum</dt><dd>' + esc(longDate(date)) + '</dd><dt>Starttid</dt><dd>' + time + '</dd><dt>Greenfee</dt><dd>' + kr(unit) + ' × ' + players + '</dd></dl>' +
+    (groups.length ? '<div class="info flag">Ni delar boll med ' + esc(groups[0].name) + (groups[0].players > 1 ? ' + ' + (groups[0].players - 1) : '') + '.</div>' : '') +
+    (dark ? '<div class="info dusk">Solen går ned ' + s.set + '. Rundan kan bli klar i mörker.</div>' : '') +
+    '<div class="field"><span class="lbl">Spelare 1</span><div>' + esc(S.profile.display_name || 'Du') + (S.profile.hcp != null ? ' · hcp ' + S.profile.hcp : '') + '</div></div>' + guests +
+    '<datalist id="nameList">' + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+    (players < c.capacity ? '<label class="toggle" for="openGroup"><span>Öppen grupp: andra får boka de ' + (c.capacity - players) + ' lediga platserna i bollen</span><input type="checkbox" id="openGroup"></label>' : '') +
+    '<div class="total"><span>Betalas till klubben</span><b>' + kr(unit * players) + '</b></div>' +
+    '<p class="note">Avbokning fram till ' + Math.round(cl.cancel_cutoff_min / 60 * 10) / 10 + ' tim före start.</p>' +
+    '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="confirm-book">Bekräfta bokning</button></div>');
+}
+function openDone(r) {
+  var round = { play_date: r.play_date, tee_time: r.tee_time, round_minutes: (course(draft && draft.course) || {}).round_minutes, code: r.code, players: r.players, course_name: r.course_name, club_name: r.club_name };
+  openDone.round = round;
+  openSheet('<h2 id="sheetH">Bokat!</h2><div class="bigcode">' + esc(r.code) + '</div><p class="note" style="text-align:center">Visa koden i receptionen eller startboden.</p>' +
+    '<dl class="kv"><dt>När</dt><dd>' + esc(longDate(r.play_date)) + ' kl ' + esc(r.tee_time) + '</dd><dt>Var</dt><dd>' + esc(r.course_name) + ', ' + esc(r.club_name) + '</dd><dt>Att betala</dt><dd>' + kr(r.price_each * r.players) + '</dd></dl>' +
+    '<div class="row"><a class="btn" style="flex:1" href="' + esc(gcalLink(round)) + '" target="_blank" rel="noopener">Lägg i kalender</a><button type="button" class="btn" style="flex:1" data-act="share-done">Dela</button></div>' +
+    '<button type="button" class="btn primary block" data-act="done">Klar</button>');
+}
+var watchDraft = null;
+function openWatch() {
+  watchDraft = { window: 30 };
+  openSheet('<h2 id="sheetH">Bevaka tid</h2><p class="note">' + esc((club(S.club) || {}).name) + ' · ' + esc(courseName(S.course)) + ' · ' + esc(longDate(S.date)) + ' · ' + spelare(S.players) + '</p>' +
+    '<div class="field"><span class="lbl">Hur flexibel är du kring ' + S.time + '?</span><div class="seg" id="winSeg">' + WINDOWS.map(function (w) { return '<button type="button" data-act="win" data-v="' + w.v + '" aria-pressed="' + (w.v === 30) + '">' + w.l + '</button>'; }).join('') + '</div></div>' +
+    '<p class="note" id="winNote">' + winText(30) + '</p>' +
+    (pushState() === 'off' ? '<label class="toggle" for="wPush"><span>Slå på notiser i telefonen också</span><input type="checkbox" id="wPush" checked></label>' : '') +
+    '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="save-watch">Starta bevakning</button></div>');
+}
+function winText(w) {
+  if (!w) return 'Du får besked om ' + S.time + ' får ' + S.players + ' lediga platser.';
+  if (w >= 1440) return 'Du får besked om någon tid under dagen får ' + S.players + ' lediga platser.';
+  return 'Du får besked om någon tid mellan ' + fmtTime(Math.max(0, toMin(S.time) - w)) + ' och ' + fmtTime(Math.min(1439, toMin(S.time) + w)) + ' får ' + S.players + ' lediga platser.';
+}
+function openPropose(courseId) {
+  var acc = S.friends.filter(function (f) { return f.status === 'accepted'; });
+  if (!acc.length) { openSheet('<h2 id="sheetH">Föreslå en tid</h2><p>Lägg till golfvänner först. Sedan kan du skicka tidsförslag till dem här.</p><div class="row"><button type="button" class="btn" data-act="close">Stäng</button><button type="button" class="btn primary" style="flex:1" data-act="goto" data-tab="vanner">Hitta vänner</button></div>'); return; }
+  openSheet('<h2 id="sheetH">Föreslå tid till vänner</h2><p class="note">' + esc(courseName(courseId)) + ', ' + esc((club(S.club) || {}).name) + ' · ' + esc(longDate(S.date)) + ' kl ' + S.time + '</p>' +
+    '<div class="field"><span class="lbl">Välj upp till tre vänner</span><div id="propFriends">' + acc.map(function (f) {
+      return '<label class="toggle person" for="pf_' + f.user_id + '"><span class="row"><span class="avatar">' + esc(initials(f.display_name)) + '</span>' + esc(f.display_name) + '</span><input type="checkbox" id="pf_' + f.user_id + '" value="' + f.user_id + '"></label>';
+    }).join('') + '</div></div>' +
+    '<div class="field"><label for="propMsg">Meddelande (valfritt)</label><textarea id="propMsg" rows="2" maxlength="300" placeholder="Ska vi köra 18 hål innan säsongen tar slut?"></textarea></div>' +
+    '<p class="note">Tiden reserveras inte förrän du bokar. Vännerna får en notis och svarar i appen.</p>' +
+    '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="send-prop" data-c="' + courseId + '">Skicka förslag</button></div>');
+}
+function openEdit(r) {
+  var c = course(r.course_id) || { capacity: 4 }, row = S.sheet && S.sheet.key === r.club_id + '|' + r.play_date ? sheetRow(r.course_id, hm(r.tee_time)) : null;
+  var maxP = Math.min(c.capacity, r.players + (row ? row.free : 0)); if (!row) maxP = c.capacity;
+  var opts = ''; for (var i = 1; i <= maxP; i++) opts += '<option value="' + i + '"' + (i === r.players ? ' selected' : '') + '>' + spelare(i) + '</option>';
+  var g = ''; for (var k = 2; k <= 4; k++) g += '<div class="field" data-gi="' + k + '"' + (k > r.players ? ' hidden' : '') + '><label for="eg' + k + '">Spelare ' + k + '</label><input type="text" id="eg' + k + '" maxlength="40" value="' + esc((r.guests || [])[k - 2] || '') + '"></div>';
+  openSheet('<h2 id="sheetH">Ändra bokning</h2><p class="note">' + esc(longDate(r.play_date)) + ' ' + hm(r.tee_time) + ' · ' + esc(r.course_name) + '</p>' +
+    '<div class="field"><label for="ePlayers">Antal spelare</label><select id="ePlayers">' + opts + '</select></div>' + g +
+    '<label class="toggle" for="eOpen"><span>Öppen grupp</span><input type="checkbox" id="eOpen"' + (r.open_group ? ' checked' : '') + '></label>' +
+    '<div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="save-edit" data-id="' + r.id + '">Spara</button></div>');
+}
+function openClubPicker() {
+  openSheet('<h2 id="sheetH">Välj klubb</h2><input type="search" id="clubSearch" placeholder="Sök klubb eller ort" autocomplete="off"><div class="clublist" id="clubList">' + clubListHtml('') + '</div><button type="button" class="btn" data-act="close">Stäng</button>');
+}
+function clubListHtml(q) {
+  q = q.trim().toLowerCase();
+  var list = S.clubs.filter(function (c) { return !q || (c.name + ' ' + c.city + ' ' + c.region).toLowerCase().indexOf(q) >= 0; });
+  list.sort(function (a, b) { return (b.id === S.profile.home_club) - (a.id === S.profile.home_club) || a.name.localeCompare(b.name, 'sv'); });
+  return list.length ? list.map(function (c) { return '<button type="button" data-act="set-club" data-id="' + c.id + '"><b>' + esc(c.name) + (c.id === S.profile.home_club ? ' · hemmaklubb' : '') + '</b><span class="note">' + esc([c.city, c.region].filter(Boolean).join(', ')) + ' · ' + clubCourses(c.id).length + ' banor</span></button>'; }).join('') : '<p class="note">Ingen klubb matchar.</p>';
+}
+function openNotifs() {
+  var html = '<div class="row between"><h2 id="sheetH">Notiser</h2>' + (S.notifs.length ? '<button type="button" class="btn small" data-act="notif-clear">Rensa</button>' : '') + '</div>';
+  html += S.notifs.length ? '<div>' + S.notifs.map(function (n) {
+    return '<button type="button" class="notif' + (n.read_at ? ' read' : '') + '" data-act="notif" data-id="' + n.id + '"><span class="dot"></span><span><b>' + esc(n.title) + '</b>' + (n.body ? '<span>' + esc(n.body) + '</span><br>' : '') + '<small>' + esc(ago(n.created_at)) + '</small></span></button>';
+  }).join('') + '</div>' : '<div class="empty"><strong>Inga notiser</strong>Här ser du lediga tider, förslag från vänner och påminnelser.</div>';
+  html += '<button type="button" class="btn" data-act="close">Stäng</button>';
+  openSheet(html);
+  var unread = S.notifs.filter(function (n) { return !n.read_at; }).map(function (n) { return n.id; });
+  if (unread.length) sb.from('notifications').update({ read_at: new Date().toISOString() }).in('id', unread).then(function () {
+    S.notifs.forEach(function (n) { if (!n.read_at) n.read_at = new Date().toISOString(); }); renderBell();
+  });
+}
+function renderBell() {
+  var n = S.notifs.filter(function (x) { return !x.read_at; }).length;
+  $('bellCount').textContent = n; $('bellCount').hidden = !n;
+  document.title = n ? '(' + n + ') TeeTime' : 'TeeTime';
+  try { if (navigator.setAppBadge) n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } catch (e) {}
+}
+
+/* ================= Laddning ================= */
+async function loadStatic() {
+  var a = await Promise.all([sb.from('clubs').select('*').order('name'), sb.from('courses').select('*'), sb.from('club_admins').select('club_id').eq('user_id', S.uid)]);
+  if (a[0].error) throw a[0].error;
+  S.clubs = a[0].data || []; S.courses = a[1].data || []; S.adminClubs = (a[2].data || []).map(function (x) { return x.club_id; });
+}
+async function loadMe() {
+  var a = await Promise.all([sb.from('profiles').select('*').eq('id', S.uid).maybeSingle(), sb.from('settings').select('*').eq('user_id', S.uid).maybeSingle()]);
+  S.profile = a[0].data || {}; S.settings = a[1].data || {};
+}
+async function loadRounds() { var r = await sb.rpc('my_rounds'); if (!r.error) S.rounds = (r.data || []).map(function (x) { x.tee_time = hm(x.tee_time); return x; }); }
+async function loadWatches() { var r = await sb.from('watches').select('*').order('play_date'); if (!r.error) S.watches = (r.data || []).map(function (x) { x.tee_time = hm(x.tee_time); return x; }); }
+async function loadFriends() { var r = await sb.rpc('my_friends'); if (!r.error) S.friends = r.data || []; }
+async function loadProposals() { var r = await sb.rpc('my_proposals'); if (!r.error) S.proposals = (r.data || []).map(function (x) { x.tee_time = hm(x.tee_time); return x; }); }
+async function loadNotifs() { var r = await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(50); if (!r.error) S.notifs = r.data || []; }
+
+function cacheKey() { return S.uid ? 'tt-cache-' + S.uid : null; }
+function saveCache() {
+  var k = cacheKey(); if (!k) return;
+  lsSet(k, JSON.stringify({ clubs: S.clubs, courses: S.courses, adminClubs: S.adminClubs, profile: S.profile, settings: S.settings, rounds: S.rounds, watches: S.watches, friends: S.friends, proposals: S.proposals, notifs: S.notifs.slice(0, 30), club: S.club, at: Date.now() }));
+}
+function loadCache() {
+  var k = cacheKey(); if (!k) return false;
+  try { var c = JSON.parse(lsGet(k) || 'null'); if (!c) return false; Object.assign(S, c); return true; } catch (e) { return false; }
+}
+function setOnline(on) {
+  S.online = on;
+  var st = $('syncStatus');
+  if (!on) { st.hidden = false; st.className = 'status off'; st.textContent = 'Ingen anslutning. Du ser sparade uppgifter, och bokning går inte just nu.'; }
+  else st.hidden = true;
+  renderAction();
+}
+function renderAll() {
+  renderBoka(); renderMine(); renderWatch(); renderFriends(); renderBell();
+  if (S.tab === 'mer') renderMer();
+}
+async function refreshAll() {
+  try {
+    await Promise.all([loadStatic(), loadMe()]);
+    if (!S.club || !club(S.club)) S.club = S.profile.home_club && club(S.profile.home_club) ? S.profile.home_club : (S.clubs[0] || {}).id || null;
+    await Promise.all([loadRounds(), loadWatches(), loadFriends(), loadProposals(), loadNotifs()]);
+    setOnline(true); saveCache(); renderAll(); loadSheet(true); subscribeSheet();
+  } catch (e) { if (isNetErr(e && e.message)) setOnline(false); else toast(errMsg(e)); renderAll(); }
+}
+
+/* ================= Direktuppdatering ================= */
+function subscribeMain() {
+  if (chMain) sb.removeChannel(chMain);
+  chMain = sb.channel('tt-' + S.uid)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + S.uid }, function (p) {
+      if (p.eventType === 'INSERT') {
+        var n = p.new; S.notifs.unshift(n); renderBell(); toast(n.title);
+        if (/^(proposal|friend)/.test(n.kind)) { loadFriends().then(loadProposals).then(function () { renderFriends(); saveCache(); }); }
+        if (/proposal_booked|cancelled|round_cancelled/.test(n.kind)) loadRounds().then(function () { renderMine(); saveCache(); });
+      }
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'watches', filter: 'user_id=eq.' + S.uid }, function () { loadWatches().then(function () { renderWatch(); renderBoka(); saveCache(); }); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, function () { loadFriends().then(function () { renderFriends(); saveCache(); }); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'proposal_members' }, function () { loadProposals().then(function () { renderFriends(); saveCache(); }); })
+    .subscribe();
+}
+function subscribeSheet() {
+  if (!S.club) return;
+  if (chSheet && chSheet._club === S.club) return;
+  if (chSheet) sb.removeChannel(chSheet);
+  chSheet = sb.channel('sheet-' + S.club).on('postgres_changes', { event: '*', schema: 'public', table: 'sheet_events', filter: 'club_id=eq.' + S.club }, function (p) {
+    var d = (p.new && p.new.play_date) || (p.old && p.old.play_date);
+    if (!d || d === S.date) scheduleSheetReload();
+    loadRounds().then(function () { renderMine(); });
+  }).subscribe();
+  chSheet._club = S.club;
+}
+
+/* ================= Notiser i telefonen ================= */
+function b64ToU8(s) { var p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+async function enablePush(quiet) {
+  var ps = pushState();
+  if (ps === 'unsupported') { if (!quiet) toast(isIOS() && !isStandalone() ? 'Lägg till appen på hemskärmen först, öppna den därifrån och försök igen.' : 'Notiser stöds inte i den här webbläsaren.'); return false; }
+  try {
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') { if (!quiet) toast('Notiser är inte tillåtna. Ändra det i telefonens inställningar.'); renderMer(); return false; }
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(VAPID_PUBLIC) });
+    var j = sub.toJSON();
+    var r = await sb.from('push_subscriptions').insert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) });
+    if (r.error && r.error.code !== '23505') throw r.error;
+    lsSet('tt-push-' + S.uid, '1');
+    if (!quiet) toast('Notiser är påslagna');
+    renderMer(); renderWatch();
+    return true;
+  } catch (e) { if (!quiet) toast('Det gick inte att slå på notiser. ' + errMsg(e)); return false; }
+}
+async function disablePush() {
+  try {
+    var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  } catch (e) {}
+  lsDel('tt-push-' + S.uid); toast('Notiser i telefonen är avstängda'); renderMer(); renderWatch();
+}
+
+/* ================= Navigering ================= */
+function setTab(t) {
+  S.tab = t;
+  ['boka', 'mina', 'vanner', 'bevaka', 'mer'].forEach(function (k) { $('view-' + k).hidden = k !== t; });
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.tab === t); });
+  if (t === 'mer') renderMer();
+  renderAction(); renderWatch();
+  lsSet('tt-tab', t); window.scrollTo(0, 0);
+}
+function openNotifTarget(n) {
+  var d = n.data || {};
+  closeSheet();
+  if (n.kind === 'watch' && d.club_id) {
+    S.club = d.club_id; S.date = d.date; S.time = d.time; S.course = d.course_id || 'any';
+    setTab('boka'); subscribeSheet(); loadSheet(true);
+  } else if (/^(proposal|friend)/.test(n.kind)) setTab('vanner');
+  else setTab('mina');
+}
+async function findFree() {
+  toast('Letar efter närmaste lediga tid…');
+  for (var i = 0; i < 10; i++) {
+    var d = addDays(S.date, i); if (d < today()) continue;
+    var r = await sb.rpc('get_day_sheet', { p_club: S.club, p_date: d }); if (r.error) break;
+    var best = null, target = toMin(S.time);
+    (r.data || []).forEach(function (x) {
+      var t = hm(x.tee_time);
+      if (S.course !== 'any' && x.course_id !== S.course) return;
+      if (x.blocked || x.free < S.players || isPast(d, t)) return;
+      if (!best || Math.abs(toMin(t) - target) < Math.abs(toMin(best) - target)) best = t;
+    });
+    if (best) { S.date = d; S.time = best; S.sheet = null; await loadSheet(true); toast('Närmaste lediga: ' + fmtDate(d) + ' kl ' + best); return; }
+  }
+  toast('Hittade ingen ledig tid de närmaste tio dagarna. Bevaka i stället.');
+}
+
+/* ================= Åtgärder ================= */
+async function copyText(txt, okMsg) {
+  if (navigator.share) { try { await navigator.share({ text: txt }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(txt); toast(okMsg || 'Kopierat'); }
+  catch (e) { openSheet('<h2 id="sheetH">Kopiera</h2><textarea id="copyArea" rows="4">' + esc(txt) + '</textarea><button type="button" class="btn primary" data-act="close">Klar</button>'); var a = $('copyArea'); if (a) { a.focus(); a.select(); } }
+}
+function needOnline() { if (!S.online) { toast('Ingen anslutning. Försök igen när du har nät.'); return false; } return true; }
+
+async function onAction(e) {
+  var el = e.target.closest('[data-act]'); if (!el) return;
+  var act = el.dataset.act, id = el.dataset.id;
+  try {
+    switch (act) {
+      case 'close': closeSheet(); break;
+      case 'goto': closeSheet(); setTab(el.dataset.tab); break;
+      case 'done': closeSheet(); setTab('mina'); break;
+      case 'pick-club': openClubPicker(); break;
+      case 'set-club': S.club = id; S.course = 'any'; S.sheet = null; closeSheet(); renderBoka(); subscribeSheet(); loadSheet(true); saveCache(); break;
+      case 'pminus': S.players = Math.max(1, S.players - 1); renderBoka(); break;
+      case 'pplus': S.players = Math.min(4, S.players + 1); renderBoka(); break;
+      case 'onlyfree': S.onlyFree = !S.onlyFree; renderBoka(); break;
+
+      case 'confirm-book': {
+        if (!draft || !needOnline()) return;
+        el.disabled = true; el.textContent = 'Bokar…';
+        var gs = []; for (var g = 2; g <= draft.players; g++) { var v = ($('g' + g) || {}).value; if (v && v.trim()) gs.push(v.trim()); }
+        var r = await sb.rpc('book_tee_time', { p_course: draft.course, p_date: draft.date, p_time: draft.time, p_players: draft.players, p_guests: gs, p_open: $('openGroup') ? $('openGroup').checked : false });
+        if (r.error) { el.disabled = false; el.textContent = 'Bekräfta bokning'; toast(errMsg(r.error)); if (/slot_full/.test(r.error.message)) { closeSheet(); loadSheet(true); } return; }
+        if (draft.watchId) await sb.from('watches').delete().eq('id', draft.watchId);
+        openDone(r.data); loadRounds().then(function () { renderMine(); saveCache(); }); loadSheet(true); loadWatches().then(renderWatch);
+        break;
+      }
+      case 'share-done': copyText(inviteText(openDone.round), 'Inbjudan kopierad'); break;
+      case 'win': {
+        watchDraft.window = +el.dataset.v;
+        Array.prototype.forEach.call($('winSeg').children, function (x) { x.setAttribute('aria-pressed', x === el); });
+        $('winNote').textContent = winText(watchDraft.window); break;
+      }
+      case 'save-watch': {
+        if (!needOnline()) return;
+        el.disabled = true;
+        var wantPush = $('wPush') && $('wPush').checked;
+        var w = await sb.from('watches').insert({ club_id: S.club, course_id: S.course === 'any' ? null : S.course, play_date: S.date, tee_time: S.time, window_min: watchDraft.window, players: S.players });
+        if (w.error) { el.disabled = false; toast(errMsg(w.error)); return; }
+        closeSheet(); toast('Bevakningen är startad');
+        if (wantPush) await enablePush(true);
+        await loadWatches(); renderWatch(); renderBoka(); saveCache(); setTab('bevaka');
+        break;
+      }
+      case 'unwatch': { if (!needOnline()) return; await sb.from('watches').delete().eq('id', id); S.watches = S.watches.filter(function (x) { return x.id !== id; }); renderWatch(); renderBoka(); toast('Bevakningen är borttagen'); break; }
+      case 'book-watch': {
+        var ww = S.watches.filter(function (x) { return x.id === id; })[0]; if (!ww || !ww.ready_slot) return;
+        S.club = ww.club_id; S.date = ww.play_date; S.time = ww.ready_slot.tee_time; S.players = ww.players; S.course = ww.course_id || 'any';
+        await loadSheet(true); subscribeSheet();
+        openConfirm(ww.ready_slot.course_id, ww.play_date, ww.ready_slot.tee_time, ww.players, { watchId: ww.id });
+        break;
+      }
+
+      case 'cancel': S.confirmCancel = id; renderMine(); break;
+      case 'cancel-no': S.confirmCancel = null; renderMine(); break;
+      case 'cancel-yes': {
+        if (!needOnline()) return;
+        S.confirmCancel = null;
+        var c1 = await sb.rpc('cancel_booking', { p_id: id });
+        if (c1.error) { toast(errMsg(c1.error)); renderMine(); return; }
+        toast('Tiden är avbokad'); await loadRounds(); renderMine(); saveCache(); loadSheet(true);
+        break;
+      }
+      case 'copy-round': { var rr = S.rounds.filter(function (x) { return x.id === id; })[0]; if (rr) copyText(inviteText(rr), 'Inbjudan kopierad'); break; }
+      case 'edit': { var re = S.rounds.filter(function (x) { return x.id === id; })[0]; if (re) { if (S.club !== re.club_id || S.date !== re.play_date) { S.club = re.club_id; S.date = re.play_date; await loadSheet(true); } openEdit(re); } break; }
+      case 'save-edit': {
+        if (!needOnline()) return;
+        var np = +$('ePlayers').value, eg = [];
+        for (var k = 2; k <= np; k++) { var gv = (($('eg' + k) || {}).value || '').trim(); if (gv) eg.push(gv); }
+        var u = await sb.rpc('update_booking', { p_id: id, p_players: np, p_guests: eg, p_open: $('eOpen').checked });
+        if (u.error) { toast(errMsg(u.error)); return; }
+        closeSheet(); toast('Bokningen är ändrad'); await loadRounds(); renderMine(); loadSheet(true);
+        break;
+      }
+
+      case 'send-prop': {
+        if (!needOnline()) return;
+        var ids = Array.prototype.map.call(document.querySelectorAll('#propFriends input:checked'), function (x) { return x.value; });
+        if (!ids.length || ids.length > 3) { toast('Välj en till tre vänner.'); return; }
+        el.disabled = true;
+        var pr = await sb.rpc('create_proposal', { p_course: el.dataset.c, p_date: S.date, p_time: S.time, p_friends: ids, p_message: $('propMsg').value });
+        if (pr.error) { el.disabled = false; toast(errMsg(pr.error)); return; }
+        closeSheet(); toast('Förslaget är skickat'); await loadProposals(); renderFriends(); setTab('vanner');
+        break;
+      }
+      case 'answer': {
+        if (!needOnline()) return;
+        var an = await sb.rpc('respond_proposal', { p_id: id, p_response: el.dataset.r });
+        if (an.error) { toast(errMsg(an.error)); return; }
+        toast({ yes: 'Du svarade ja', no: 'Du svarade nej', maybe: 'Du svarade kanske' }[el.dataset.r]); await loadProposals(); renderFriends();
+        break;
+      }
+      case 'book-prop': {
+        if (!needOnline()) return;
+        el.disabled = true;
+        var bp = await sb.rpc('book_proposal', { p_id: id });
+        if (bp.error) { el.disabled = false; toast(errMsg(bp.error)); return; }
+        draft = { course: null }; openDone(bp.data); await Promise.all([loadProposals(), loadRounds()]); renderFriends(); renderMine();
+        break;
+      }
+      case 'cancel-prop': { if (!needOnline()) return; var cp = await sb.rpc('cancel_proposal', { p_id: id }); if (cp.error) { toast(errMsg(cp.error)); return; } toast('Förslaget är tillbakadraget'); await loadProposals(); renderFriends(); break; }
+
+      case 'friend-yes': case 'friend-no': {
+        if (!needOnline()) return;
+        var fr = await sb.rpc('respond_friend_request', { p_user: id, p_accept: act === 'friend-yes' });
+        if (fr.error) { toast(errMsg(fr.error)); return; }
+        await loadFriends(); renderFriends(); toast(act === 'friend-yes' ? 'Ni är nu golfvänner' : 'Förfrågan nekad');
+        break;
+      }
+      case 'unfriend': {
+        if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = 'Säker?'; el.classList.add('warn'); return; }
+        var uf = await sb.rpc('remove_friend', { p_user: id }); if (uf.error) { toast(errMsg(uf.error)); return; }
+        await loadFriends(); renderFriends(); toast('Vännen är borttagen');
+        break;
+      }
+      case 'add-friend': case 'add-code': {
+        if (!needOnline()) return;
+        var params = act === 'add-friend' ? { p_user: id } : { p_code: ($('fCode').value || '').trim() };
+        if (act === 'add-code' && !params.p_code) { toast('Skriv en vänkod.'); return; }
+        var af = await sb.rpc('send_friend_request', params);
+        if (af.error) { toast(errMsg(af.error)); return; }
+        toast(af.data && af.data.status === 'accepted' ? 'Ni är nu golfvänner' : 'Vänförfrågan skickad'); await loadFriends(); renderFriends();
+        break;
+      }
+      case 'share-code': copyText('Bli min golfvän i TeeTime: ' + APP_URL + '?add=' + S.profile.friend_code, 'Länken är kopierad'); break;
+
+      case 'save-profile': {
+        if (!needOnline()) return;
+        var hcpRaw = $('prHcp').value.trim().replace(',', '.'), hcp = hcpRaw === '' ? null : Math.round(parseFloat(hcpRaw) * 10) / 10;
+        if (hcp !== null && (isNaN(hcp) || hcp < -10 || hcp > 54)) { toast('Handicap ska vara ett tal mellan -10 och 54.'); return; }
+        var name = $('prName').value.trim(); if (!name) { toast('Skriv ditt namn.'); return; }
+        var a1 = await sb.from('profiles').update({ display_name: name, hcp: hcp, home_club: $('prHome').value || null }).eq('id', S.uid);
+        var a2 = await sb.from('settings').update({ golf_id: $('prGolfId').value.trim() || null, default_players: +$('prPlayers').value, favorite_friends: $('prFav').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 20), updated_at: new Date().toISOString() }).eq('user_id', S.uid);
+        if (a1.error || a2.error) { toast(errMsg(a1.error || a2.error)); return; }
+        await loadMe(); saveCache(); renderMer(); toast('Profilen är sparad');
+        break;
+      }
+      case 'enable-push': enablePush(false); break;
+      case 'disable-push': disablePush(); break;
+      case 'theme': lsSet('tt-theme', el.dataset.v); applyLook(); renderMer(); break;
+      case 'logout': await signOut(); break;
+      case 'acc-email': openSheet('<h2 id="sheetH">Byt e-post</h2><div class="field"><label for="newEmail">Ny e-post</label><input type="email" id="newEmail" autocomplete="email"></div><p class="note">Du får ett mejl för att bekräfta bytet.</p><div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="acc-email-save">Byt e-post</button></div>'); break;
+      case 'acc-email-save': { var em = await sb.auth.updateUser({ email: $('newEmail').value.trim() }); if (em.error) { toast(errMsg(em.error)); return; } closeSheet(); toast('Kolla din nya e-post för att bekräfta'); break; }
+      case 'acc-pw': openSheet('<h2 id="sheetH">Nytt lösenord</h2><div class="field"><label for="newPw">Nytt lösenord (minst 8 tecken)</label><input type="password" id="newPw" autocomplete="new-password" minlength="8"></div><div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="acc-pw-save">Spara</button></div>'); break;
+      case 'acc-pw-save': { var pw = $('newPw').value; if (pw.length < 8) { toast('Lösenordet måste vara minst 8 tecken.'); return; } var pu = await sb.auth.updateUser({ password: pw }); if (pu.error) { toast(errMsg(pu.error)); return; } closeSheet(); toast('Lösenordet är bytt'); break; }
+      case 'acc-delete': openSheet('<h2 id="sheetH">Radera konto</h2><p>Dina bokningar, bevakningar, vänner och förslag raderas och kan inte återställas. Skriv RADERA för att bekräfta.</p><input type="text" id="delConfirm" autocomplete="off"><div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn warn" style="flex:1" data-act="acc-delete-yes">Radera mitt konto</button></div>'); break;
+      case 'acc-delete-yes': {
+        if ($('delConfirm').value.trim().toUpperCase() !== 'RADERA') { toast('Skriv RADERA för att bekräfta.'); return; }
+        var dl = await sb.rpc('delete_my_account'); if (dl.error) { toast(errMsg(dl.error)); return; }
+        lsDel(cacheKey()); closeSheet(); await sb.auth.signOut(); toast('Kontot är raderat');
+        break;
+      }
+
+      case 'notif': { var n = S.notifs.filter(function (x) { return x.id === id; })[0]; if (n) openNotifTarget(n); break; }
+      case 'notif-clear': await sb.from('notifications').delete().eq('user_id', S.uid); S.notifs = []; renderBell(); openNotifs(); break;
+
+      case 'new-club': openSheet('<h2 id="sheetH">Registrera klubb</h2><p class="note">Du blir administratör och kan lägga upp banor, priser och starttider. Spelare kan sedan boka direkt i TeeTime.</p><div class="field"><label for="ncName">Klubbens namn</label><input type="text" id="ncName" maxlength="80"></div><div class="form2"><div class="field"><label for="ncCity">Ort</label><input type="text" id="ncCity"></div><div class="field"><label for="ncRegion">Distrikt</label><input type="text" id="ncRegion"></div></div><div class="row"><button type="button" class="btn" data-act="close">Avbryt</button><button type="button" class="btn primary" style="flex:1" data-act="new-club-save">Skapa klubb</button></div>'); break;
+      case 'new-club-save': {
+        var nm = $('ncName').value.trim(); if (nm.length < 2) { toast('Skriv klubbens namn.'); return; }
+        var nc = await sb.rpc('create_club', { p_name: nm, p_city: $('ncCity').value, p_region: $('ncRegion').value });
+        if (nc.error) { toast(errMsg(nc.error)); return; }
+        await loadStatic(); S.adminClub = nc.data; S.adminSub = 'banor'; closeSheet(); renderAdmin(); toast('Klubben är skapad. Lägg till en bana.');
+        break;
+      }
+      case 'admin': S.adminClub = id; if (S.adminSub === 'dag') await loadAdminDay(); renderAdmin(); break;
+      case 'adm-tab': S.adminSub = el.dataset.v; if (S.adminSub === 'dag') await loadAdminDay(); renderAdmin(); break;
+      case 'adm-cancel': {
+        if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = 'Säker?'; el.classList.add('warn'); return; }
+        var ac = await sb.rpc('cancel_booking', { p_id: id }); if (ac.error) { toast(errMsg(ac.error)); return; }
+        toast('Bokningen är avbokad och spelaren har fått besked'); await loadAdminDay(); renderAdmin();
+        break;
+      }
+      case 'adm-block': {
+        var bf = $('bFrom').value, bt = $('bTo').value; if (!bf || !bt) { toast('Ange tider.'); return; }
+        if (bt < bf) { var tmp = bf; bf = bt; bt = tmp; }
+        var ab = await sb.from('blocks').insert({ club_id: S.adminClub, course_id: $('bCourse').value || null, play_date: S.adminDate, from_time: bf, to_time: bt, reason: $('bReason').value.trim() || 'Stängt', created_by: S.uid });
+        if (ab.error) { toast(errMsg(ab.error)); return; }
+        toast('Tiderna är stängda'); await loadAdminDay(); renderAdmin();
+        break;
+      }
+      case 'adm-unblock': { await sb.from('blocks').delete().eq('id', id); toast('Tiderna är öppna igen'); await loadAdminDay(); renderAdmin(); break; }
+      case 'adm-course': courseForm(id ? course(id) : null); break;
+      case 'adm-save-course': {
+        var nn = function (x) { var v = $(x).value; return v === '' ? null : +v; };
+        var row = { club_id: S.adminClub, name: $('kName').value.trim(), holes: +$('kHoles').value, par: nn('kPar'), length_m: nn('kLen'), round_minutes: nn('kMins'), price: nn('kPrice'), weekend_add: nn('kWeek') || 0,
+          twilight_from: $('kTw').value || null, twilight_pct: nn('kTwp') || 0, first_tee: $('kFirst').value, last_tee: $('kLast').value, interval_min: nn('kInt'), capacity: +$('kCap').value, active: $('kActive').checked };
+        if (row.name.length < 2) { toast('Skriv banans namn.'); return; }
+        var sc = id ? await sb.from('courses').update(row).eq('id', id) : await sb.from('courses').insert(row);
+        if (sc.error) { toast('Kontrollera fälten. ' + errMsg(sc.error)); return; }
+        await loadStatic(); S.adminSub = 'banor'; closeSheet(); renderAdmin(); toast('Banan är sparad'); S.sheet = null; loadSheet(true);
+        break;
+      }
+      case 'adm-save-club': {
+        var num = function (x) { var v = $(x).value.replace(',', '.').trim(); return v === '' ? null : +v; };
+        var cu = await sb.from('clubs').update({ name: $('cName').value.trim(), city: $('cCity').value.trim(), region: $('cRegion').value.trim(), lat: num('cLat'), lng: num('cLng'),
+          booking_days: num('cDays'), cancel_cutoff_min: num('cCut'), max_active: num('cMax'), phone: $('cPhone').value.trim(), description: $('cDesc').value.trim() }).eq('id', S.adminClub);
+        if (cu.error) { toast('Kontrollera fälten. ' + errMsg(cu.error)); return; }
+        await loadStatic(); renderAdmin(); renderBoka(); toast('Klubben är sparad');
+        break;
+      }
+      case 'adm-add-admin': { var aa = await sb.rpc('add_club_admin', { p_club: S.adminClub, p_code: $('admCode').value }); if (aa.error) { toast(errMsg(aa.error)); return; } toast('Administratören är tillagd'); break; }
+    }
+  } catch (err) { toast(errMsg(err)); }
+}
+
+/* ================= Inloggning ================= */
+var authMode = 'in';
+function showAuth() { $('authView').hidden = false; $('appView').hidden = true; $('nav').hidden = true; $('actionbar').hidden = true; }
+function showApp() { $('authView').hidden = true; $('appView').hidden = false; $('nav').hidden = false; }
+function setAuthMode(m) {
+  authMode = m;
+  Array.prototype.forEach.call($('authSeg').children, function (b) { b.setAttribute('aria-pressed', b.dataset.mode === m); });
+  $('nameField').hidden = m !== 'up'; $('authBtn').textContent = m === 'up' ? 'Skapa konto' : 'Logga in';
+  $('aPw').autocomplete = m === 'up' ? 'new-password' : 'current-password'; $('authMsg').textContent = '';
+}
+async function onAuthSubmit(e) {
+  e.preventDefault();
+  var email = $('aEmail').value.trim(), pw = $('aPw').value, msg = $('authMsg'), btn = $('authBtn');
+  if (!/^\S+@\S+\.\S+$/.test(email)) { msg.textContent = 'Skriv en giltig e-postadress.'; return; }
+  if (pw.length < 8) { msg.textContent = 'Lösenordet måste vara minst 8 tecken.'; return; }
+  btn.disabled = true; msg.textContent = '';
+  try {
+    if (authMode === 'up') {
+      var name = $('aName').value.trim(); if (!name) { msg.textContent = 'Skriv ditt namn.'; return; }
+      var r = await sb.auth.signUp({ email: email, password: pw, options: { data: { name: name }, emailRedirectTo: APP_URL } });
+      if (r.error) throw r.error;
+      if (!r.data.session) msg.textContent = 'Klart! Bekräfta din e-post via länken vi skickade, och logga sedan in.';
+    } else {
+      var s = await sb.auth.signInWithPassword({ email: email, password: pw });
+      if (s.error) throw s.error;
+    }
+  } catch (err) { msg.textContent = errMsg(err); }
+  finally { btn.disabled = false; }
+}
+async function onForgot() {
+  var email = $('aEmail').value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) { $('authMsg').textContent = 'Skriv din e-post först, tryck sedan Glömt lösenordet igen.'; return; }
+  var r = await sb.auth.resetPasswordForEmail(email, { redirectTo: APP_URL });
+  $('authMsg').textContent = r.error ? errMsg(r.error) : 'Vi har skickat en länk för att välja nytt lösenord.';
+}
+async function signOut() {
+  try { if (pushState() === 'on') await disablePush(); } catch (e) {}
+  if (chMain) sb.removeChannel(chMain); if (chSheet) sb.removeChannel(chSheet); chMain = chSheet = null;
+  lsDel(cacheKey());
+  await sb.auth.signOut();
+}
+
+async function startApp(session) {
+  S.session = session; S.uid = session.user.id; S.email = session.user.email || '';
+  showApp();
+  var hadCache = loadCache();
+  var lt = lsGet('tt-tab'); if (lt) S.tab = lt;
+  var hs = location.hash.replace('#', ''); if (['boka', 'mina', 'vanner', 'bevaka', 'mer'].indexOf(hs) >= 0) { S.tab = hs; history.replaceState(null, '', APP_URL + location.search); }
+  setTab(S.tab);
+  if (hadCache) renderAll();
+  if (S.settings.default_players) S.players = S.settings.default_players;
+  await refreshAll();
+  if (S.settings.default_players && !S.booted) { S.players = S.settings.default_players; renderBoka(); }
+  subscribeMain();
+  S.booted = true;
+  // Länk för att bli vän: ?add=KOD
+  var add = new URLSearchParams(location.search).get('add');
+  if (add) {
+    history.replaceState(null, '', APP_URL);
+    if (add.toUpperCase() !== S.profile.friend_code) {
+      var r = await sb.rpc('send_friend_request', { p_code: add });
+      toast(r.error ? errMsg(r.error) : 'Vänförfrågan skickad'); loadFriends().then(renderFriends); setTab('vanner');
+    }
+  }
+}
+
+/* ================= Start ================= */
+function boot() {
+  if (!sb) { document.body.innerHTML = '<p style="padding:24px">Appen kunde inte laddas. Kontrollera anslutningen och ladda om sidan.</p>'; return; }
+  $('authSeg').addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) setAuthMode(b.dataset.mode); });
+  $('authForm').addEventListener('submit', onAuthSubmit);
+  $('forgotBtn').addEventListener('click', onForgot);
+  $('tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+  $('bellBtn').addEventListener('click', openNotifs);
+  $('bannerGo').addEventListener('click', function () { setTab('bevaka'); });
+  $('mainBtn').addEventListener('click', function () {
+    var m = this.dataset.mode;
+    if (m === 'book') { var c = candidates(S.time, S.players)[0]; if (c) openConfirm(c.course_id, S.date, S.time, S.players); }
+    else if (m === 'watch') openWatch();
+  });
+  $('altBtn').addEventListener('click', function () {
+    if (this.dataset.mode === 'find') findFree();
+    else { var c = candidates(S.time, S.players)[0]; openPropose(c ? c.course_id : (S.course === 'any' ? (clubCourses(S.club)[0] || {}).id : S.course)); }
+  });
+  document.addEventListener('click', function (e) {
+    var v = $('view-boka');
+    if (v.contains(e.target)) {
+      var d = e.target.closest('[data-d]'); if (d) { S.date = d.dataset.d; loadSheet(); renderBoka(); return; }
+      var c = e.target.closest('[data-c]'); if (c && c.classList.contains('course')) { S.course = c.dataset.c; renderBoka(); return; }
+      var f = e.target.closest('[data-f]'); if (f) { S.filter = f.dataset.f; renderBoka(); return; }
+      var s = e.target.closest('.slot'); if (s && !s.disabled) { S.time = s.dataset.t; renderBoka(); return; }
+    }
+    onAction(e);
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.id === 'fDate' && t.value) { S.date = t.value < today() ? today() : t.value; loadSheet(); renderBoka(); }
+    else if (t.id === 'fTime' && t.value) { var target = toMin(t.value), best = S.time; sheetTimes().forEach(function (x) { if (Math.abs(toMin(x) - target) < Math.abs(toMin(best) - target)) best = x; }); S.time = best; renderBoka(); }
+    else if (t.id === 'ePlayers') { var n = +t.value; Array.prototype.forEach.call(document.querySelectorAll('[data-gi]'), function (x) { x.hidden = +x.dataset.gi > n; }); }
+    else if (t.id === 'stEmail' || t.id === 'stRemind') {
+      var patch = {}; patch[t.id === 'stEmail' ? 'notify_email' : 'remind_day_before'] = t.checked;
+      sb.from('settings').update(patch).eq('user_id', S.uid).then(function (r) { if (r.error) { toast(errMsg(r.error)); t.checked = !t.checked; } else { Object.assign(S.settings, patch); saveCache(); toast('Sparat'); } });
+    }
+    else if (t.id === 'stBig') { lsSet('tt-big', t.checked ? '1' : '0'); applyLook(); }
+    else if (t.id === 'admDate' && t.value) { S.adminDate = t.value; loadAdminDay().then(renderAdmin); }
+    else if (t.closest && t.closest('#propFriends')) { var on = document.querySelectorAll('#propFriends input:checked'); if (on.length > 3) { t.checked = false; toast('Högst tre vänner per förslag.'); } }
+  });
+  var searchTimer = null;
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.id === 'clubSearch') $('clubList').innerHTML = clubListHtml(t.value);
+    if (t.id === 'pSearch') {
+      clearTimeout(searchTimer);
+      var q = t.value.trim();
+      searchTimer = setTimeout(async function () {
+        if (q.length < 2) { $('pResults').innerHTML = ''; return; }
+        var r = await sb.from('profiles').select('id,display_name,hcp').ilike('display_name', '%' + q.replace(/[%_,()]/g, '') + '%').neq('id', S.uid).limit(8);
+        var known = {}; S.friends.forEach(function (f) { known[f.user_id] = f.status; });
+        $('pResults').innerHTML = (r.data || []).length ? (r.data || []).map(function (p) {
+          return '<div class="person"><span class="avatar">' + esc(initials(p.display_name)) + '</span><span class="grow"><b>' + esc(p.display_name) + '</b><span class="note">' + (p.hcp != null ? 'hcp ' + p.hcp : '') + '</span></span>' +
+            (known[p.id] === 'accepted' ? '<span class="chip yes">Vän</span>' : known[p.id] ? '<span class="chip">Väntar</span>' : '<button type="button" class="btn small primary" data-act="add-friend" data-id="' + p.id + '">Lägg till</button>') + '</div>';
+        }).join('') : '<p class="note">Ingen spelare med det namnet.</p>';
+      }, 300);
+    }
+  });
+  $('sheet').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
+  window.addEventListener('online', function () { setOnline(true); if (S.uid) refreshAll(); });
+  window.addEventListener('offline', function () { setOnline(false); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && S.uid && S.booted) { loadSheet(true); loadNotifs().then(renderBell); loadWatches().then(renderWatch); } });
+  setInterval(function () { if (S.uid && S.tab === 'boka' && S.sheet) { renderBoka(); } }, 60000);
+
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'open') { loadNotifs().then(function () { renderBell(); openNotifs(); }); } });
+  }
+
+  sb.auth.onAuthStateChange(function (event, session) {
+    if (event === 'PASSWORD_RECOVERY') {
+      showApp();
+      openSheet('<h2 id="sheetH">Välj nytt lösenord</h2><div class="field"><label for="newPw">Nytt lösenord (minst 8 tecken)</label><input type="password" id="newPw" autocomplete="new-password"></div><button type="button" class="btn primary" data-act="acc-pw-save">Spara lösenord</button>');
+    }
+    if (session && (!S.uid || S.uid !== session.user.id)) { setTimeout(function () { startApp(session); }, 0); }
+    else if (!session) { S.uid = null; S.booted = false; showAuth(); }
+  });
+  sb.auth.getSession().then(function (r) { if (!r.data.session) showAuth(); });
+}
+boot();
+})();
+</script>
+</body>
+</html>

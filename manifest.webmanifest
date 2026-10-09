@@ -1,0 +1,16 @@
+{
+  "name": "TeeTime",
+  "short_name": "TeeTime",
+  "description": "Boka starttider, bevaka fulla tider och bjud in golfvänner.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f0f3ee",
+  "theme_color": "#1d5c3b",
+  "lang": "sv",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
